@@ -1,5 +1,11 @@
-import type { Db } from './db.js';
-import { MIGRATIONS } from './migrations.generated.js';
+import type { SqlDriver } from './driver.js';
+
+/** One migration, as the engine packages generate it. */
+export interface Migration {
+  readonly name: string;
+  readonly hash: string;
+  readonly statements: readonly string[];
+}
 
 /**
  * The migration runner.
@@ -46,23 +52,30 @@ export interface MigrateResult {
   readonly alreadyApplied: number;
 }
 
-export function runMigrations(db: Db, now: () => string): MigrateResult {
-  db.exec(BOOKKEEPING);
+export async function runMigrations(
+  db: SqlDriver,
+  migrations: readonly Migration[],
+  now: () => string,
+): Promise<MigrateResult> {
+  await db.exec(BOOKKEEPING);
 
   const seen = new Map(
-    db.all<{ name: string; hash: string }>('SELECT name, hash FROM __holiday_migrations').map((r) => [r.name, r.hash]),
+    (await db.all<{ name: string; hash: string }>('SELECT name, hash FROM __holiday_migrations')).map((r) => [
+      r.name,
+      r.hash,
+    ]),
   );
 
   const applied: string[] = [];
-  for (const m of MIGRATIONS) {
+  for (const m of migrations) {
     const priorHash = seen.get(m.name);
     if (priorHash !== undefined) {
       if (priorHash !== m.hash) throw new MigrationDriftError(m.name, priorHash, m.hash);
       continue;
     }
-    db.transaction(() => {
-      for (const statement of m.statements) db.exec(statement);
-      db.run('INSERT INTO __holiday_migrations (name, hash, applied_at) VALUES (?, ?, ?)', m.name, m.hash, now());
+    await db.transaction(async (tx) => {
+      for (const statement of m.statements) await tx.exec(statement);
+      await tx.run('INSERT INTO __holiday_migrations (name, hash, applied_at) VALUES (?, ?, ?)', m.name, m.hash, now());
     });
     applied.push(m.name);
   }
@@ -70,9 +83,10 @@ export function runMigrations(db: Db, now: () => string): MigrateResult {
   return { applied, alreadyApplied: seen.size };
 }
 
-export function appliedMigrations(db: Db): { name: string; appliedAt: string }[] {
-  db.exec(BOOKKEEPING);
-  return db
-    .all<{ name: string; applied_at: string }>('SELECT name, applied_at FROM __holiday_migrations ORDER BY name')
-    .map((r) => ({ name: r.name, appliedAt: r.applied_at }));
+export async function appliedMigrations(db: SqlDriver): Promise<{ name: string; appliedAt: string }[]> {
+  await db.exec(BOOKKEEPING);
+  const rows = await db.all<{ name: string; applied_at: string }>(
+    'SELECT name, applied_at FROM __holiday_migrations ORDER BY name',
+  );
+  return rows.map((r) => ({ name: r.name, appliedAt: r.applied_at }));
 }

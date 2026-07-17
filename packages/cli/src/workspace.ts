@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import type { CommodityCode, Grain } from '@holiday/core';
-import { SqliteLedgerStore } from '@holiday/store-sqlite';
+import type { SqlLedgerStore } from '@holiday/store-sql';
+import { sqliteLedgerStore } from '@holiday/store-sqlite';
 
 export const DIR = '.holiday';
 
@@ -68,9 +69,9 @@ export function createWorkspace(root: string, config: Config): string {
   return ws;
 }
 
-export function openStore(ws: string): SqliteLedgerStore {
+export function openStore(ws: string): SqlLedgerStore {
   const config = readConfig(ws);
-  return new SqliteLedgerStore({
+  return sqliteLedgerStore({
     path: join(ws, 'ledger.db'),
     book: {
       functionalCurrency: config.functionalCurrency,
@@ -93,7 +94,7 @@ export function openStore(ws: string): SqliteLedgerStore {
  * Migrations are append-only and each runs in its own transaction, so this is
  * a no-op on an up-to-date file and atomic on an old one.
  */
-export async function openLedger(ws: string): Promise<SqliteLedgerStore> {
+export async function openLedger(ws: string): Promise<SqlLedgerStore> {
   const store = openStore(ws);
   await store.init();
   await store.migrate();

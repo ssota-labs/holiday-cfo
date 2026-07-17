@@ -18,7 +18,8 @@
     "migrations:build": "pnpm run migrations:generate && pnpm run migrations:inline"
   },
   "dependencies": {
-    "@holiday/core": "workspace:*"
+    "@holiday/core": "workspace:*",
+    "@holiday/store-sql": "workspace:*"
   },
   "devDependencies": {
     "@holiday/store-testkit": "workspace:*",

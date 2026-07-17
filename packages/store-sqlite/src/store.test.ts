@@ -7,8 +7,8 @@ import type { CommodityCode } from '@holiday/core';
 import { runLedgerStoreConformance, seed, simpleTxn } from '@holiday/store-testkit';
 
 import { Db } from './db.js';
-import { MigrationDriftError } from './migrate.js';
-import { SqliteLedgerStore } from './store.js';
+import { MigrationDriftError } from '@holiday/store-sql';
+import { sqliteLedgerStore } from './store.js';
 
 const dirs: string[] = [];
 function tempDb(): string {
@@ -22,15 +22,15 @@ afterAll(() => {
 });
 
 const newStore = async () =>
-  new SqliteLedgerStore({
+  sqliteLedgerStore({
     path: tempDb(),
     book: { functionalCurrency: 'KRW' as CommodityCode, closeGrain: 'month' },
   });
 
 // The executable port contract. If this fails, the adapter is not an engine.
-runLedgerStoreConformance('SqliteLedgerStore', newStore);
+runLedgerStoreConformance('sqlite', newStore);
 
-describe('SqliteLedgerStore — audit hash chain', () => {
+describe('sqlite — audit hash chain', () => {
   it('chains every mutation from genesis', async () => {
     const store = await newStore();
     await store.init();
@@ -55,7 +55,7 @@ describe('SqliteLedgerStore — audit hash chain', () => {
     // the transaction balances, the commodities conform, the weights are
     // identity-consistent. Only the chain notices.
     const path = tempDb();
-    const store = new SqliteLedgerStore({
+    const store = sqliteLedgerStore({
       path,
       book: { functionalCurrency: 'KRW' as CommodityCode },
     });
@@ -80,7 +80,7 @@ describe('SqliteLedgerStore — audit hash chain', () => {
     `);
     raw.close();
 
-    const reopened = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const reopened = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await reopened.init();
     await reopened.migrate();
     const report = await reopened.unitOfWork((uow) => uow.verify());
@@ -93,7 +93,7 @@ describe('SqliteLedgerStore — audit hash chain', () => {
 
   it('DETECTS an altered audit row', async () => {
     const path = tempDb();
-    const store = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const store = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await store.init();
     await store.migrate();
     const f = await store.unitOfWork((uow) => seed(uow));
@@ -107,7 +107,7 @@ describe('SqliteLedgerStore — audit hash chain', () => {
     raw.exec(`UPDATE audit_log SET at = '1999-01-01T00:00:00.000Z' WHERE seq = 1`);
     raw.close();
 
-    const reopened = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const reopened = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await reopened.init();
     await reopened.migrate();
     const report = await reopened.unitOfWork((uow) => uow.verify());
@@ -117,7 +117,7 @@ describe('SqliteLedgerStore — audit hash chain', () => {
 
   it('refuses to UPDATE or DELETE the audit log at all', async () => {
     const path = tempDb();
-    const store = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const store = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await store.init();
     await store.migrate();
     const f = await store.unitOfWork((uow) => seed(uow));
@@ -131,27 +131,27 @@ describe('SqliteLedgerStore — audit hash chain', () => {
   });
 });
 
-describe('SqliteLedgerStore — book identity', () => {
+describe('sqlite — book identity', () => {
   it('refuses to reopen a KRW ledger as a USD one', async () => {
     // Re-basing is a rebuild into a NEW book, never an in-place edit: historical
     // weights encode the old functional currency as a fact. See plan Risk 1.
     const path = tempDb();
-    const a = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const a = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await a.init();
     await a.migrate();
     await a.close();
 
-    const b = new SqliteLedgerStore({ path, book: { functionalCurrency: 'USD' as CommodityCode } });
+    const b = sqliteLedgerStore({ path, book: { functionalCurrency: 'USD' as CommodityCode } });
     await b.init();
     await expect(b.migrate()).rejects.toThrow(/cannot be changed in place/);
     await b.close();
   });
 });
 
-describe('SqliteLedgerStore — migrations', () => {
+describe('sqlite — migrations', () => {
   it('records every migration with its hash', async () => {
     const path = tempDb();
-    const store = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const store = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await store.init();
     await store.migrate();
     await store.close();
@@ -165,7 +165,7 @@ describe('SqliteLedgerStore — migrations', () => {
 
   it('is a no-op on an already-migrated ledger', async () => {
     const path = tempDb();
-    const open = () => new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const open = () => sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     const a = open();
     await a.init();
     const first = await a.migrate();
@@ -188,7 +188,7 @@ describe('SqliteLedgerStore — migrations', () => {
     // one leaves it in a state no other copy of the ledger shares — including the
     // one committed last month.
     const path = tempDb();
-    const store = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const store = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await store.init();
     await store.migrate();
     await store.close();
@@ -198,7 +198,7 @@ describe('SqliteLedgerStore — migrations', () => {
     raw.exec(`UPDATE __holiday_migrations SET hash = '${'0'.repeat(64)}' WHERE name = (SELECT MIN(name) FROM __holiday_migrations)`);
     raw.close();
 
-    const reopened = new SqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
+    const reopened = sqliteLedgerStore({ path, book: { functionalCurrency: 'KRW' as CommodityCode } });
     await reopened.init();
     await expect(reopened.migrate()).rejects.toThrow(MigrationDriftError);
     await expect(reopened.migrate()).rejects.toThrow(/append-only/);

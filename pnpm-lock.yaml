@@ -102,6 +102,9 @@ importers:
       '@holiday/core':
         specifier: workspace:*
         version: link:../core
+      '@holiday/store-sql':
+        specifier: workspace:*
+        version: link:../store-sql
       '@holiday/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
@@ -123,6 +126,9 @@ importers:
       '@holiday/core':
         specifier: workspace:*
         version: link:../core
+      '@holiday/store-sql':
+        specifier: workspace:*
+        version: link:../store-sql
     devDependencies:
       '@electric-sql/pglite':
         specifier: ^0.5.4
@@ -140,11 +146,20 @@ importers:
         specifier: ^3.4.9
         version: 3.4.9
 
+  packages/store-sql:
+    dependencies:
+      '@holiday/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/store-sqlite:
     dependencies:
       '@holiday/core':
         specifier: workspace:*
         version: link:../core
+      '@holiday/store-sql':
+        specifier: workspace:*
+        version: link:../store-sql
     devDependencies:
       '@holiday/store-testkit':
         specifier: workspace:*
