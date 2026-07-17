@@ -118,6 +118,28 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
 
+  packages/store-postgres:
+    dependencies:
+      '@holiday/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.4
+        version: 0.5.4
+      '@holiday/store-testkit':
+        specifier: workspace:*
+        version: link:../store-testkit
+      drizzle-kit:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@electric-sql/pglite@0.5.4)(postgres@3.4.9)(zod@4.4.3)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
+
   packages/store-sqlite:
     dependencies:
       '@holiday/core':
@@ -132,7 +154,7 @@ importers:
         version: 1.0.0-rc.4
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(zod@4.4.3)
+        version: 1.0.0-rc.4(@electric-sql/pglite@0.5.4)(postgres@3.4.9)(zod@4.4.3)
 
   packages/store-testkit:
     dependencies:
@@ -151,6 +173,9 @@ packages:
 
   '@drizzle-team/brocli@0.12.0':
     resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
+
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
 
   '@emnapi/runtime@1.11.2':
     resolution: {integrity: sha512-kyOl3X0DuTiT1h2ft8r2fYO8JYtU9a9Xis/zBSiGArNaagCOWx90N1k2wxp18czFDH+OgcWGb5ZP/XMt3dcyPA==}
@@ -3082,6 +3107,10 @@ packages:
     resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
+
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
@@ -3593,6 +3622,8 @@ snapshots:
   '@alloc/quick-lru@5.2.0': {}
 
   '@drizzle-team/brocli@0.12.0': {}
+
+  '@electric-sql/pglite@0.5.4': {}
 
   '@emnapi/runtime@1.11.2':
     dependencies:
@@ -5119,8 +5150,10 @@ snapshots:
       get-tsconfig: 4.14.0
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-rc.4(zod@4.4.3):
+  drizzle-orm@1.0.0-rc.4(@electric-sql/pglite@0.5.4)(postgres@3.4.9)(zod@4.4.3):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.4
+      postgres: 3.4.9
       zod: 4.4.3
 
   enhanced-resolve@5.21.6:
@@ -6348,6 +6381,8 @@ snapshots:
       nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.9: {}
 
   prelude-ls@1.2.1: {}
 
