@@ -1,93 +1,73 @@
 ---
 title: 현금흐름
-description: 잔고가 버티나 — 네 스케줄이 모이는 곳
+description: 오늘 현금과 앞으로의 유출만 본다. 과거 현금흐름표가 아니다.
 type: conceptual
-summary: 과거는 원장에서 유도하고 미래는 스케줄에서 투영한다. 유지하는 테이블이 아니다.
-related: ['/docs/features/cards', '/docs/features/loans', '/docs/domain/policy']
+summary: CLI는 개시 현금과 전방 runway만 출력한다. 네 투영기가 같은 날짜 버킷에 합류한다.
+related: ['/docs/features/cards', '/docs/features/installments', '/docs/features/recurring', '/docs/features/loans', '/docs/domain/policy']
 ---
 
-원장이 아는 건 **과거뿐**이다. "다음달 카드값 나가면 통장이 버티나"에는 답하지 못한다.
-스케줄은 반대로 본다 — **언제 돈이 나갈지**.
+## 개요
 
-## 유지하는 게 아니라 유도한다
+`holiday cashflow`는 **역사적 현금흐름표가 아니다.** CLI가 출력하는 것은 다음 두 가지뿐이다.
 
-현금흐름표의 **과거 절반은 쿼리다** — 현금 계정을 건드린 posting이라 원장과 어긋날
-여지가 없다. 손으로 맞춘 두 테이블은 언젠가 반드시 어긋난다.
+1. 오늘 기준 `account.cash = true` 계정의 장부가액 합(개시 현금)
+2. 그 잔고에서 미래 유출을 날짜 순으로 빼며 걸어가는 runway
 
-계산이 필요한 쪽은 **미래 절반**뿐이고, 그건 스케줄에서 뽑는다.
+원장의 과거 절반(현금 계정을 건드린 posting)은 쿼리로 유도할 수 있으나, 이 명령은 그 표를 만들지 않는다. 유지하는 현금흐름 테이블도 없다.
 
-## 네 개는 같다
+## 동작
 
-카드·할부·대출은 회계상 **전부 부채**다. 갈리는 지점은 계정 종류가 아니라 **스케줄
-모양**이다. 정기지출은 계정조차 아니다.
+네 투영기가 동일 날짜 버킷에 합류한다. `cashRunway`가 개시 현금에서 출발해 날짜별로 잔고를 갱신한다.
 
-| | 모양 | 계정 |
+| 투영기 | 입력 | 유출 일자 |
 |---|---|---|
-| **카드 청구주기** | 회전 — 사용기간이 닫히고 결제일에 전액 | `Liabilities:Card:*` |
-| **할부** | 고정 N개월 분할 | `Liabilities:Card:*:Installment` ← **별도** |
-| **대출** | 분할상환 (원금+이자) | `Liabilities:Loans:*` |
-| **정기지출** | 반복 발생 | 계정 아님 |
+| `projectCardBills` | 카드 계정 posting + 청구주기 | 결제일 |
+| `projectInstallments` | 할부 스케줄 행 | 회차 `paymentDate` |
+| `projectRecurring` | 정기지출 카덴스 | 통장: 발생일 / 카드: 청구주기 결제일 |
+| `projectLoans` | 대출 상환 스케줄 | 회차 `dueDate` |
 
-<Canvas
-  height={380}
-  nodes={[
-    { id: 'card', type: 'doc', position: { x: 0, y: 0 }, data: { label: 'card', description: '청구주기', kind: 'forecast', handles: { target: false } } },
-    { id: 'inst', type: 'doc', position: { x: 0, y: 90 }, data: { label: 'installment', description: '할부 N회차', kind: 'forecast', handles: { target: false } } },
-    { id: 'rec', type: 'doc', position: { x: 0, y: 180 }, data: { label: 'recurring', description: '정기지출 카덴스', kind: 'forecast', handles: { target: false } } },
-    { id: 'loan', type: 'doc', position: { x: 0, y: 270 }, data: { label: 'loan', description: '상환 스케줄', kind: 'forecast', handles: { target: false } } },
-    { id: 'ledger', type: 'doc', position: { x: 0, y: 360 }, data: { label: 'posting', description: '원장 — 이미 쓴 돈', kind: 'fact', handles: { target: false } } },
-    { id: 'runway', type: 'doc', position: { x: 300, y: 170 }, data: { label: 'cashRunway', description: '날짜별로 묶어 잔고를 걸어감', kind: 'derived' } },
-    { id: 'answer', type: 'doc', position: { x: 560, y: 170 }, data: { label: '⚠ SHORT', description: '버티나 못 버티나', kind: 'derived', handles: { source: false } } },
+스케줄 행은 원장에 전기되지 않는다. 예측이 사실이 되면 일반 `txn`으로 기록한다.
+
+`balanceAfterMinor < 0`인 날짜에 `⚠ SHORT`를 붙인다. SHORT는 에러가 아니라 답이다. exit code는 0이다.
+
+개시 현금은 `account.cash` 플래그가 정한다. 자산 접두어 규칙이 아니다. `--cash`가 없는 자산은 개시 잔고에 포함되지 않으며, CLI가 경고를 낸다.
+
+청구주기가 없는 카드에 붙은 할부는 투영에서 빠진다. CLI는 orphan installment 경고를 낸다.
+
+```
+⚠ installment "…" is on a card with no billing cycle and is NOT in this projection.
+⚠ Assets:… is not marked --cash and is NOT counted as cash on hand.
+```
+
+## 명령
+
+<CommandSpec
+  command="cashflow"
+  mutates={false}
+  summary="오늘 현금에서 출발해, 이미 오고 있는 카드·할부·정기지출·대출 유출을 빼며 걸어간다."
+  signature={`holiday cashflow [--until YYYY-MM-DD] [--json]`}
+  flags={[
+    { name: '--until', type: 'YYYY-MM-DD', default: '3개월 후', description: '투영 지평. 이 날짜 이하(포함)의 결제일만' },
   ]}
-  edges={[
-    { id: 'l1', source: 'card', target: 'runway' },
-    { id: 'l2', source: 'inst', target: 'runway' },
-    { id: 'l3', source: 'rec', target: 'runway' },
-    { id: 'l4', source: 'loan', target: 'runway' },
-    { id: 'l5', source: 'ledger', target: 'runway', animated: true },
-    { id: 'l6', source: 'runway', target: 'answer', animated: true },
+  exits={[
+    { code: 0, meaning: '정상. SHORT여도 0 — 답이지 에러가 아니다' },
+    { code: 2, meaning: '원장 없음 등 사용법 오류' },
   ]}
+  example={`$ holiday cashflow --until 2026-10-31
+cash on hand (2026-07-17):  3000000 KRW
+
+2026-07-25   -      800000   →       2200000
+             월세                                   800000
+2026-10-01   -      117000   →        -17000   ⚠ SHORT
+             냉장고 (2/12)                           100000
+             넷플릭스 (2026-08-17 결제분)                 17000
+
+⚠ Short by 17000 KRW on 2026-10-01.`}
 />
 
-<CanvasLegend />
+## 제약
 
-**스케줄에서 원장으로 가는 화살표가 없다.** 예측은 절대 전기되지 않는다. 금리나
-구독이 바뀔 때마다 과거가 오염되기 때문이다.
-
-## 실제 출력
-
-```
-cash on hand (2026-07-17):  350000000 KRW
-
-2026-07-25   -      800000   →     349200000
-             월세                                   800000
-2026-08-01   -      400000   →     348800000
-             신한  2026-06-15..2026-07-14           400000
-2026-08-25   -     2267052   →     346532948
-             월세                                   800000
-             KB 주담대 (1/360)                      1467052
-2026-09-01   -      100000   →     346432948
-             냉장고 (1/12)                           100000
-```
-
-8/25에 월세와 주담대가 **같은 날 합류**한다. 통장이 실제로 하는 일과 같다.
-
-답이 `⚠ SHORT`다. 잔액은 숫자 하나지만, 현금흐름은 **어느 날 터지는지**를 보여 준다.
-
-## 현금이 뭔지는 플래그가 정한다
-
-기준은 `account.cash`다. 예전에는 `Assets:Bank*` 접두어 규칙이었고, 관례를 사실인 척했다.
-다른 이름 아래 현금이 투영에서 **조용히** 빠졌는데도 숫자는 멀쩡한 척 틀렸다. [ADR-004](/docs/dev/adr#adr-004).
-
-표시되지 않은 자산 계정이 있으면 `cashflow`가 소리 내어 알린다. 예측에서 항목이 조용히
-빠지면 "모르겠다"가 "괜찮다"로 읽힌다.
-
-## 스케줄은 예측이다 — 근사가 허용되는 유일한 곳
-
-원장의 "허용오차 없음"과 모순처럼 보여도 아니다. **사실/예측을 나눈 반대편**일 뿐이다.
-
-- **사실**(원장): 정확. 허용오차 0. `SUM(weight) = 0`.
-- **예측**(스케줄): 근사 가능. `loan check`가 정직하게 유지한다.
-
-다만 **행의 합만은 정확**해야 한다. 합이 안 맞는 스케줄은 명세서와 영원히 대사되지 않고,
-예측을 정직하게 유지할 수단도 사라진다.
+- 투영은 `paymentDate > today`이고 `paymentDate <= until`인 유출만 포함한다. 오늘 이전·오늘 당일 유출은 원장 몫이다.
+- 카드 청구액에서 funding 계정을 상대 leg로 갖는 거래(결제)는 제외한다. 환불과 결제를 부호만으로 구분하지 않는다. [POLICY-004](/docs/domain/policy#policy-004)
+- 이미 마감됐지만 아직 결제되지 않은 청구서도 포함한다. [POLICY-008](/docs/domain/policy#policy-008)
+- 할부·정기지출·대출은 스케줄에서만 투영한다. 할부 구매 posting은 구매일 전액이므로 일반 청구 합계에 넣지 않는다.

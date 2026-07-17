@@ -1,0 +1,108 @@
+---
+title: 잔고 단언과 월 마감
+description: assert로 명세서를 고정하고, close로 기간을 잠근다
+type: conceptual
+summary: closeGate는 draft와 실패한 assertion을 막는다. 지분 결산 분개는 없다.
+related: ['/docs/features/fx', '/docs/features/ingest', '/docs/domain/glossary']
+---
+
+## 개요
+
+마감은 기간의 회계적 확정이다. CLI hard-close 그레인은 **month**다(`YYYY-MM`). book의 `closeGrain`이 `month`가 아니면 `close`는 거부한다.
+
+두 가지를 의도적으로 하지 않는다 (`close.ts` 주석과 동일):
+
+1. **다중 그레인 hard close 없음** — 일과 달을 둘 다 재평가하면 FX가 이중 계상된다. hard close 그레인은 book당 하나.
+2. **지분(equity)으로의 결산 분개 없음** — 기간 범위 합계는 SQL로 계산한다. 결산 분개는 저널 노이즈만 늘린다. 이월·대차대조는 스냅샷이 담당한다.
+
+일·주 단위는 checkpoint(스냅샷만) 영역이다. 저널 잠금·재평가를 하지 않는다.
+
+## 동작
+
+### assert
+
+`holiday assert <account> <amount>`는 명세서를 보고 "이 날짜에 이 잔액이었다"고 단언한다. 장부 잔액과 비교해 차이를 보여 준다. 불일치면 exit 1(`assertion_failed`)이며, 단언 행은 저장된다.
+
+부채·자본·수익은 표시 부호를 보정한다(저장 크레딧 vs 명세서 잔액).
+
+단언은 원장과 외부 세계를 비교하는 유일한 검사다. 마감 게이트가 기간 내 단언을 다시 검사한다.
+
+### closeGate
+
+`close <month>`는 먼저 `closeGate`를 통과해야 한다.
+
+| 조건 | 실패 시 |
+|---|---|
+| 기간 내 `status='draft'` 거래 수 > 0 | 마감 차단. `review`로 처리 |
+| 기간 내 balance assertion 중 하나라도 불일치 | 마감 차단. 차액 설명 출력 |
+
+통과 후에만 재평가·스냅샷·기간 `closed`가 진행된다.
+
+### FX 재평가
+
+월말 잔고 중 **화폐성 자산·부채**이고 기능통화가 아닌 계정을 재평가한다.
+
+- `--non-monetary` 계정 제외
+- 비용·수익·자본 제외(거래일 측정)
+- `units = 0`이어도 carrying weight가 남으면 재평가 대상(실현 FX)
+- posting: `units_minor = 0`, `weight_minor = delta`, 상대 계정 `Income:FX:Unrealized`
+
+재평가는 기간이 아직 open인 동안 기표한 뒤 잠근다. weight가 units와 분리 저장되어 있어 "외화 수량 불변 + KRW 장부가액 변경"이 표현 가능하다.
+
+### --dry-run
+
+게이트·재평가 예정 줄만 보여 주고 쓰지 않는다.
+
+단언이 0건이어도 마감은 가능하다. 다만 CLI는 명세서 대조 없는 달은 "얼린 것이지 마감한 게 아니다"라고 경고한다.
+
+## 명령
+
+<CommandSpec
+  command="assert"
+  mutates={true}
+  summary="명세서를 기준으로 계정 잔액을 단언한다. 불일치면 assertion_failed."
+  signature={`holiday assert <account> <amount>
+  [--as-of <date>]
+  [--commodity <code>]
+  [--note <text>]`}
+  flags={[
+    { name: '--as-of', type: 'date', default: 'today', description: '단언 기준일' },
+    { name: '--commodity', type: 'code', description: '기본: 계정 commodity 또는 기능통화' },
+    { name: '--note', type: 'string', description: '메모' },
+  ]}
+  exits={[
+    { code: 0, meaning: '일치. 단언 저장' },
+    { code: 1, meaning: '불일치 — assertion_failed. 단언은 저장됨' },
+    { code: 2, meaning: '계정 없음' },
+  ]}
+  example={`$ holiday assert Assets:Bank:KB:Checking 3500000 --as-of 2026-07-31
+✓ Assets:Bank:KB:Checking (2026-07-31) = 3,500,000 KRW`}
+/>
+
+<CommandSpec
+  command="close"
+  mutates={true}
+  summary="월 마감 — 게이트 통과 후 FX 재평가, 스냅샷, 기간 잠금."
+  signature={`holiday close <YYYY-MM> [--dry-run]`}
+  flags={[{ name: '--dry-run', type: 'boolean', default: 'false', description: '기록하지 않고 재평가 예정만 출력' }]}
+  exits={[
+    { code: 0, meaning: '마감 완료 또는 dry-run 성공' },
+    { code: 1, meaning: 'close_blocked, 월 형식 오류(CloseError), 재평가·환율 실패 등' },
+    { code: 2, meaning: 'closeGrain ≠ month, Income:FX:Unrealized 없음' },
+  ]}
+  example={`$ holiday close 2026-07 --dry-run
+2026-07 마감 가능. 단언 2건 통과.
+  재평가 Assets:Bank:Wise:USD              12,500 KRW
+
+$ holiday close 2026-07
+2026-07 마감. 스냅샷 42개 계정.
+  재평가 Assets:Bank:Wise:USD              12,500 KRW`}
+/>
+
+## 제약
+
+- hard close 입력은 `YYYY-MM`뿐이다. book `closeGrain`이 `month`여야 한다.
+- draft·실패한 assertion이 있으면 마감하지 않는다. draft를 조용히 제외하지 않는다.
+- equity closing entry를 만들지 않는다.
+- 재평가에 `Income:FX:Unrealized` 계정이 필요하다. 없으면 usage 오류로 안내한다.
+- 환율이 없으면 외화 잔고 재평가가 throw로 마감을 막는다. 사전에 `fx add`가 필요하다.

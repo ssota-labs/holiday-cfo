@@ -6,6 +6,8 @@
     "domain/glossary",
     "---Features---",
     "features/ingest",
+    "features/fx",
+    "features/close",
     "features/cards",
     "features/installments",
     "features/recurring",
