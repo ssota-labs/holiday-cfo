@@ -3345,6 +3345,10 @@ process.on("warning", (warning) => {
 `);
 });
 
+// src/cli.ts
+import { existsSync as existsSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname2, join as join3, resolve as resolve2 } from "node:path";
+
 // ../../node_modules/.pnpm/commander@13.1.0/node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
 var {
@@ -8697,6 +8701,79 @@ function describeOutflow(b) {
   return `${b.cardLabel ?? b.cardCode}  ${b.cycleFrom}..${b.cycleTo}`;
 }
 
+// src/dash.ts
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+function templatesDir() {
+  return fileURLToPath(new URL("../templates/", import.meta.url));
+}
+async function bakeDatasets(store, opts) {
+  const head = await store.chainHead();
+  return store.unitOfWork(async (uow) => {
+    const rows = await uow.getBalances({ asOf: opts.asOf });
+    const accounts = await uow.listAccounts();
+    const codeOf = new Map(accounts.map((a) => [a.id, a.code]));
+    const proj = await projectCashflow(uow, { asOf: opts.asOf, until: opts.until });
+    const report = await uow.verify();
+    return {
+      balances: rows.map((b) => ({
+        accountCode: codeOf.get(b.accountId) ?? b.accountId,
+        commodity: b.commodity,
+        unitsMinor: b.unitsMinor.toString(),
+        weightMinor: b.weightMinor.toString()
+      })),
+      cashflow: {
+        asOf: proj.asOf,
+        until: proj.until,
+        openingCashMinor: proj.openingCashMinor.toString(),
+        commodity: proj.commodity,
+        runway: proj.runway.map((p) => ({
+          date: p.date,
+          outflowMinor: p.outflowMinor.toString(),
+          balanceAfterMinor: p.balanceAfterMinor.toString(),
+          items: p.items.map((i) => ({ kind: i.kind, label: i.label, amountMinor: i.amountMinor.toString() }))
+        })),
+        // Shipped, not printed. The projection knows what it is NOT covering, and
+        // a dashboard that drops that turns "I don't know" into "you're fine".
+        gaps: proj.gaps
+      },
+      health: {
+        ok: report.ok,
+        checked: report.checked,
+        problems: report.problems.map((p) => ({ kind: p.kind, detail: p.detail })),
+        head
+      },
+      bakedAt: opts.now()
+    };
+  });
+}
+function scaffold(dest, version) {
+  const src = join(templatesDir(), "dash");
+  if (!existsSync(src)) {
+    throw new Error(`holiday: the dash template is missing from this install (looked in ${src})`);
+  }
+  mkdirSync(dest, { recursive: true });
+  const created = [];
+  const skipped = [];
+  for (const entry of readdirSync(src)) {
+    const to = join(dest, entry);
+    if (existsSync(to)) {
+      skipped.push(entry);
+      continue;
+    }
+    cpSync(join(src, entry), to, { recursive: true });
+    created.push(entry);
+  }
+  const dotless = join(dest, "gitignore");
+  if (existsSync(dotless) && !existsSync(join(dest, ".gitignore"))) renameSync(dotless, join(dest, ".gitignore"));
+  if (created.includes("package.json")) {
+    const pkg = join(dest, "package.json");
+    writeFileSync(pkg, readFileSync(pkg, "utf8").replaceAll("__HOLIDAY_VERSION__", version));
+  }
+  return { created, skipped };
+}
+
 // src/ingest.ts
 var INGEST_SUBMISSION = external_exports.object({
   /** sha256 of the image bytes, if the agent has the file. Blocks a re-submit of the same image. */
@@ -8782,8 +8859,8 @@ var UsageError = class extends Error {
 };
 
 // src/workspace.ts
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname, join as join2, resolve } from "node:path";
 
 // ../store-sql/dist/chain.js
 import { createHash } from "node:crypto";
@@ -10032,7 +10109,7 @@ var NoWorkspaceError = class extends Error {
 function findWorkspace(from = process.cwd()) {
   let dir = resolve(from);
   for (; ; ) {
-    if (existsSync(join(dir, DIR, "config.json"))) return join(dir, DIR);
+    if (existsSync2(join2(dir, DIR, "config.json"))) return join2(dir, DIR);
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -10044,15 +10121,15 @@ function requireWorkspace(from = process.cwd()) {
   return ws;
 }
 function readConfig(ws) {
-  return JSON.parse(readFileSync(join(ws, "config.json"), "utf8"));
+  return JSON.parse(readFileSync2(join2(ws, "config.json"), "utf8"));
 }
 function createWorkspace(root, config) {
-  const ws = join(root, DIR);
-  mkdirSync(join(ws, "exports"), { recursive: true });
-  writeFileSync(join(ws, "config.json"), `${JSON.stringify(config, null, 2)}
+  const ws = join2(root, DIR);
+  mkdirSync2(join2(ws, "exports"), { recursive: true });
+  writeFileSync2(join2(ws, "config.json"), `${JSON.stringify(config, null, 2)}
 `);
-  writeFileSync(
-    join(ws, ".gitignore"),
+  writeFileSync2(
+    join2(ws, ".gitignore"),
     [
       "# ledger.db is the system of record and SHOULD be committed.",
       "# These two are transient. Run `holiday checkpoint` before committing.",
@@ -10069,7 +10146,7 @@ function createWorkspace(root, config) {
 function openStore(ws) {
   const config = readConfig(ws);
   return sqliteLedgerStore({
-    path: join(ws, "ledger.db"),
+    path: join2(ws, "ledger.db"),
     book: {
       functionalCurrency: config.functionalCurrency,
       closeGrain: config.closeGrain,
@@ -10161,14 +10238,14 @@ program2.command("txn").description("\uAC70\uB798 \uAE30\uB85D").command("add").
   const store = await openLedger(ws);
   const byCode = /* @__PURE__ */ new Map();
   for (const a of await store.read((r) => r.listAccounts())) byCode.set(a.code, a);
-  const resolve2 = (code) => {
+  const resolve3 = (code) => {
     const a = byCode.get(code);
     if (!a) throw new UsageError(`no such account: ${code}. Create it with \`holiday account add ${code}\`.`);
     return a;
   };
   const date = assertIsoDate(o.date);
   const derive = await makeDeriveWeight(store, config.functionalCurrency, date);
-  const postings = o.leg.map((l) => parseLeg(l, amounts, config.functionalCurrency, resolve2, derive));
+  const postings = o.leg.map((l) => parseLeg(l, amounts, config.functionalCurrency, resolve3, derive));
   const result = Txn.create({
     id: nextUlid(),
     date,
@@ -10784,7 +10861,7 @@ ingest.command("submit").description("record parsed transactions as DRAFTS for r
     const accounts = await uow.listAccounts();
     const byCode = new Map(accounts.map((a) => [a.code, a]));
     const byId = new Map(accounts.map((a) => [a.id, a]));
-    const resolve2 = (code) => {
+    const resolve3 = (code) => {
       const a = byCode.get(code);
       if (!a) throw new UsageError(`no such account: ${code}. Create it before ingesting.`);
       return a;
@@ -10816,7 +10893,7 @@ ingest.command("submit").description("record parsed transactions as DRAFTS for r
           `${l.account} ${l.amount} ${l.commodity}${l.weight ? ` @@ ${l.weight}` : ""}`,
           amounts,
           config.functionalCurrency,
-          resolve2
+          resolve3
         )
       );
       const txn = Txn.create({
@@ -11286,6 +11363,45 @@ program2.command("checkpoint").description("fold the WAL back into ledger.db \u2
   await store.checkpoint();
   await store.close();
   note("WAL checkpointed. ledger.db is safe to commit.");
+});
+var dash = program2.command("dash").description("\uB300\uC2DC\uBCF4\uB4DC \u2014 \uC6D0\uC7A5\uC758 \uC2A4\uB0C5\uC0F7\uC744 \uAD7D\uACE0, \uC5D0\uC774\uC804\uD2B8\uAC00 \uD654\uBA74\uC744 \uACE0\uB978\uB2E4");
+dash.command("init").description("scaffold a vinext dashboard next to the ledger").option("--dir <path>", "where to write it", "dash").action(async (o) => {
+  const ws = requireWorkspace();
+  const dest = resolve2(process.cwd(), o.dir);
+  const { created, skipped } = scaffold(dest, program2.version() ?? "0.1.0");
+  const store = await openLedger(ws);
+  const data = await bakeDatasets(store, {
+    asOf: assertIsoDate(today()),
+    until: assertIsoDate(addMonthsIso(today(), 3)),
+    now: () => (/* @__PURE__ */ new Date()).toISOString()
+  });
+  await store.close();
+  writeFileSync3(join3(dest, "src", "data", "ledger.json"), `${JSON.stringify(data, null, 2)}
+`);
+  out({ dir: dest, created, skipped });
+  note(`Dashboard scaffolded at ${dest}`);
+  if (skipped.length > 0) note(`Kept your existing: ${skipped.join(", ")}`);
+  note(`  cd ${o.dir} && pnpm install && pnpm dev`);
+  note(`Edit src/data/spec.json to choose the layout. Never edit ledger.json \u2014 run \`holiday dash data\`.`);
+});
+dash.command("data").description("re-bake the snapshot the dashboard renders").option("--dir <path>", "the dashboard directory", "dash").option("--until <date>", "projection horizon", addMonthsIso(today(), 3)).action(async (o) => {
+  const ws = requireWorkspace();
+  const store = await openLedger(ws);
+  const data = await bakeDatasets(store, {
+    asOf: assertIsoDate(today()),
+    until: assertIsoDate(o.until),
+    now: () => (/* @__PURE__ */ new Date()).toISOString()
+  });
+  await store.close();
+  const dest = resolve2(process.cwd(), o.dir, "src", "data", "ledger.json");
+  if (!existsSync3(dirname2(dest))) {
+    throw new UsageError(`no dashboard at ${resolve2(process.cwd(), o.dir)} \u2014 run \`holiday dash init\` first`);
+  }
+  writeFileSync3(dest, `${JSON.stringify(data, null, 2)}
+`);
+  if (jsonMode()) return out(data);
+  note(`Baked ${dest}`);
+  note(`This is a SNAPSHOT. Re-run after every txn add / ingest / close.`);
 });
 function today() {
   return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);

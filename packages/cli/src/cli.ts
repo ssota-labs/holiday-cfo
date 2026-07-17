@@ -1,5 +1,8 @@
 // Loaded dynamically by main.ts, AFTER env.ts has patched process.emitWarning.
 // Do not make this the bin entry point — see the comment in main.ts.
+import { existsSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+
 import { Command } from 'commander';
 import { z } from 'zod';
 
@@ -56,6 +59,7 @@ import {
   scheduleInterest,
 } from '@holiday-cfo/core';
 
+import { bakeDatasets, scaffold } from './dash.js';
 import { INGEST_SUBMISSION, type IngestItemInput } from './ingest.js';
 import { type DeriveWeight, UsageError, parseLeg } from './legs.js';
 import { createWorkspace, openLedger, readConfig, requireWorkspace } from './workspace.js';
@@ -1690,6 +1694,71 @@ program
     await store.close();
     note('WAL checkpointed. ledger.db is safe to commit.');
   });
+
+const dash = program.command('dash').description('대시보드 — 원장의 스냅샷을 굽고, 에이전트가 화면을 고른다');
+
+dash
+  .command('init')
+  .description('scaffold a vinext dashboard next to the ledger')
+  .option('--dir <path>', 'where to write it', 'dash')
+  .action(async (o: { dir: string }) => {
+    const ws = requireWorkspace();
+    const dest = resolve(process.cwd(), o.dir);
+    // The blocks are pinned to THIS CLI's version — see scaffold(). A dashboard
+    // and the vocabulary it is written in are one release.
+    const { created, skipped } = scaffold(dest, program.version() ?? '0.1.0');
+
+    // Bake immediately. A scaffold whose first `pnpm dev` shows an empty page
+    // teaches the agent that the dashboard is broken, and it starts inventing
+    // fixes — usually by typing figures into spec.json, which is the one thing
+    // this design exists to prevent.
+    const store = await openLedger(ws);
+    const data = await bakeDatasets(store, {
+      asOf: assertIsoDate(today()),
+      until: assertIsoDate(addMonthsIso(today(), 3)),
+      now: () => new Date().toISOString(),
+    });
+    await store.close();
+    writeFileSync(join(dest, 'src', 'data', 'ledger.json'), `${JSON.stringify(data, null, 2)}\n`);
+
+    out({ dir: dest, created, skipped });
+    note(`Dashboard scaffolded at ${dest}`);
+    if (skipped.length > 0) note(`Kept your existing: ${skipped.join(', ')}`);
+    note(`  cd ${o.dir} && pnpm install && pnpm dev`);
+    note(`Edit src/data/spec.json to choose the layout. Never edit ledger.json — run \`holiday dash data\`.`);
+  });
+
+dash
+  .command('data')
+  .description('re-bake the snapshot the dashboard renders')
+  .option('--dir <path>', 'the dashboard directory', 'dash')
+  .option('--until <date>', 'projection horizon', addMonthsIso(today(), 3))
+  .action(async (o: { dir: string; until: string }) => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const data = await bakeDatasets(store, {
+      asOf: assertIsoDate(today()),
+      until: assertIsoDate(o.until),
+      now: () => new Date().toISOString(),
+    });
+    await store.close();
+
+    const dest = resolve(process.cwd(), o.dir, 'src', 'data', 'ledger.json');
+    if (!existsSync(dirname(dest))) {
+      throw new UsageError(`no dashboard at ${resolve(process.cwd(), o.dir)} — run \`holiday dash init\` first`);
+    }
+    writeFileSync(dest, `${JSON.stringify(data, null, 2)}\n`);
+    if (jsonMode()) return out(data);
+    note(`Baked ${dest}`);
+    note(`This is a SNAPSHOT. Re-run after every txn add / ingest / close.`);
+  });
+
+// No `dash catalog` command, on purpose. The catalog is a Zod object in
+// @holiday-cfo/blocks, and it imports @json-render/react — printing it from here
+// would drag React into a 423KB CLI bundle that has no business knowing what a
+// component is. The block list lives in the template's AGENTS.md, which lands
+// next to spec.json in the project where the agent is actually reading. A script
+// keeps the two honest: pnpm --filter @holiday-cfo/cli check:catalog.
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);

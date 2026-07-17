@@ -23,8 +23,15 @@ export default defineConfig({
   outDir: '../../plugin/bin',
   outExtension: () => ({ js: '.mjs' }),
   // Everything that is not a Node builtin gets inlined: @holiday-cfo/core,
-  // @holiday-cfo/store-sqlite, commander, zod.
-  noExternal: [/^@holiday\//, 'commander', 'zod'],
+  // @holiday-cfo/store-sql, @holiday-cfo/store-sqlite, commander, zod.
+  //
+  // The pattern is anchored on the scope with a hyphen class rather than a bare
+  // `@holiday/`: renaming the scope to @holiday-cfo silently stopped the old
+  // regex matching, tsup happily marked every workspace package external, and the
+  // bundle built clean and died at runtime with ERR_MODULE_NOT_FOUND. Typecheck
+  // and 211 tests all passed — nothing tests the bundle but running it, which is
+  // why bundle:check exists and why CI must run it.
+  noExternal: [/^@holiday-cfo\//, 'commander', 'zod'],
   /**
    * The `createRequire` line is not decoration.
    *
@@ -62,4 +69,24 @@ export default defineConfig({
   sourcemap: false,
   splitting: false,
   dts: false,
+  /**
+   * The dash template is data, not code, so the bundler walks straight past it.
+   *
+   * `holiday dash init` resolves it as `../templates/` from whatever is running,
+   * which is the one path that holds for both shapes:
+   *
+   *   npm      dist/main.js      → packages/cli/templates/   (files: [...])
+   *   plugin   bin/holiday.mjs   → plugin/templates/         ← copied here
+   *
+   * Without this the plugin build produces a CLI whose `dash init` throws. It
+   * would not be caught by typecheck or by any test that imports the source,
+   * because both find the template through the workspace. Only running the
+   * bundled binary finds it — same lesson as the noExternal regex above.
+   */
+  onSuccess: async () => {
+    const { cpSync, rmSync } = await import('node:fs');
+    const dest = new URL('../../plugin/templates/', import.meta.url);
+    rmSync(dest, { recursive: true, force: true });
+    cpSync(new URL('templates/', import.meta.url), dest, { recursive: true });
+  },
 });

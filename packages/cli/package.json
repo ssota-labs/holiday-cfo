@@ -10,7 +10,9 @@
     ".": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "templates",
+    "LICENSE.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
