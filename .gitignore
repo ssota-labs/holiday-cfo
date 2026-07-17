@@ -15,3 +15,6 @@ next-env.d.ts
 
 # drizzle-kit scratch
 packages/store-sqlite/migrations/meta/
+
+# humanize-korean scratch
+_workspace/

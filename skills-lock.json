@@ -6,6 +6,24 @@
       "sourceType": "github",
       "skillPath": "skills/productivity/grill-me/SKILL.md",
       "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
+    },
+    "humanize": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize/SKILL.md",
+      "computedHash": "dc85c84afd26d1f5d402e8fddc494cc03d1550ed6ff98af7d8f8bdac038ec38a"
+    },
+    "humanize-korean": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize-korean/SKILL.md",
+      "computedHash": "75e1c643add0abab707d1f6b8629844b0322fdd71615a2b0d4672d82b3085002"
+    },
+    "humanize-redo": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize-redo/SKILL.md",
+      "computedHash": "790abcc9e39f0bd7ea3e03dab671ab72348831bdd199814aea45079499841d11"
     }
   }
 }
