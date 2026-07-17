@@ -16,7 +16,6 @@ import {
   type InstallmentRow,
   type BalanceAssertion,
   type FxRate,
-  type SnapshotBalance,
   type SnapshotKind,
   type SnapshotWithBalances,
   parseRate,

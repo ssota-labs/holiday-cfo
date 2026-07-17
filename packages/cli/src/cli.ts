@@ -5,7 +5,6 @@ import { z } from 'zod';
 
 import {
   type Account,
-  type AccountCode,
   type AccountId,
   AmountFactory,
   CommodityRegistry,
@@ -45,7 +44,6 @@ import {
   rowForDate,
   projectLoans,
   type ExistingTxn,
-  type FxRate,
   type ParsedTxn,
   type AssertionCheck,
   type SnapshotBalance,
@@ -535,7 +533,6 @@ installment
   .description('installments with money still to move')
   .action(async () => {
     const ws = requireWorkspace();
-    const config = readConfig(ws);
     const store = await openLedger(ws);
     const now = assertIsoDate(today());
     const plans = await store.read((r) => r.listInstallments({ activeOn: now }));
@@ -1175,7 +1172,6 @@ review
   .description('drafts waiting for a human')
   .action(async () => {
     const ws = requireWorkspace();
-    const config = readConfig(ws);
     const store = await openLedger(ws);
     const result = await store.read(async (r) => {
       const items = await r.listIngestItems({ status: 'pending' });
@@ -1216,7 +1212,7 @@ review
   .command('accept <id>')
   .description('promote a draft to posted. Cannot fail — it is already balanced.')
   .option('--idem-key <key>')
-  .action(async (id: string, o: { idemKey?: string }) => {
+  .action(async (id: string, _o: { idemKey?: string }) => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
     const result = await store.unitOfWork(async (uow) => {
@@ -1354,7 +1350,6 @@ loan
   .description('loans and where they stand')
   .action(async () => {
     const ws = requireWorkspace();
-    const config = readConfig(ws);
     const store = await openLedger(ws);
     const now = assertIsoDate(today());
     const result = await store.read(async (r) => {
@@ -1397,7 +1392,6 @@ loan
   .option('--as-of <date>', 'ISO date', today())
   .action(async (code: string | undefined, o: { asOf: string }) => {
     const ws = requireWorkspace();
-    const config = readConfig(ws);
     const store = await openLedger(ws);
     const asOf = assertIsoDate(o.asOf);
 

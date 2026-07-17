@@ -19,12 +19,11 @@ Fumadocs/Next.js documentation site.
 
 ### Build / test / run
 - Standard scripts (see root `package.json` / `turbo.json`): `pnpm install`,
-  `pnpm build`, `pnpm test`, `pnpm typecheck`. All run via Turbo with `^build`
-  deps.
-- **`pnpm lint` is currently broken at the repo level** — there is no
-  `eslint.config.*` file, and ESLint 9 requires flat config, so `eslint .`
-  errors out. This is a pre-existing repository issue, not an environment
-  problem. Use `pnpm typecheck` as the working static-analysis gate.
+  `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`. All run via Turbo
+  with `^build` deps (lint is root-only).
+- ESLint 9 flat config lives in `eslint.config.js` (typescript-eslint
+  recommended). Generated paths are ignored (e.g. `apps/docs/.source/**`,
+  `plugin/bin/**`, `**/migrations.generated.ts`).
 - **No external services are needed** to build/test/run: SQLite is the builtin
   `node:sqlite` (a local file, no server), and the Postgres adapter's tests run
   against in-process `pglite` (Postgres-in-WASM). No Docker, DB server, env
