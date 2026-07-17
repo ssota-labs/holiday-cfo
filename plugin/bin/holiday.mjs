@@ -8057,6 +8057,59 @@ function convert(amountMinor, rate, fromExponent, toExponent) {
   return roundDiv(adjusted, RATE_SCALE);
 }
 
+// ../core/dist/domain/close.js
+var CloseError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CloseError";
+  }
+};
+var MONTH_RE = /^(\d{4})-(\d{2})$/;
+function monthBounds(spec) {
+  const m = MONTH_RE.exec(spec.trim());
+  if (!m)
+    throw new CloseError(`${JSON.stringify(spec)} is not a month. Write it as YYYY-MM, e.g. 2026-07.`);
+  const [, y, mo] = m;
+  const year = Number(y);
+  const month = Number(mo);
+  if (month < 1 || month > 12)
+    throw new CloseError(`${spec}: month must be 01-12`);
+  const last = daysInMonth(year, month);
+  return {
+    id: `month:${y}-${mo}`,
+    start: `${y}-${mo}-01`,
+    end: `${y}-${mo}-${String(last).padStart(2, "0")}`
+  };
+}
+function checkAssertion(expectedMinor, actualMinor) {
+  const delta = actualMinor - expectedMinor;
+  return { deltaMinor: delta, ok: delta === 0n };
+}
+function revaluationLines(inputs) {
+  return inputs.map((i) => ({
+    accountId: i.accountId,
+    accountCode: i.accountCode,
+    commodity: i.commodity,
+    deltaMinor: i.targetMinor - i.carryingMinor
+  })).filter((l) => l.deltaMinor !== 0n);
+}
+function closeGate(draftCount, assertions) {
+  const failed = assertions.filter((a) => !a.ok);
+  const parts = [];
+  if (draftCount > 0) {
+    parts.push(`${draftCount}\uAC74\uC758 \uB4DC\uB798\uD504\uD2B8\uAC00 \uC774 \uAE30\uAC04\uC5D0 \uB0A8\uC544 \uC788\uC2B5\uB2C8\uB2E4. \uAC80\uD1A0\uB418\uC9C0 \uC54A\uC740 \uCEA1\uCCD0\uAC00 \uC788\uB294 \uB2EC\uC740 \uB9C8\uAC10\uB41C \uAC8C \uC544\uB2D9\uB2C8\uB2E4 \u2014 \`holiday review list\`\uB85C \uCC98\uB9AC\uD558\uC138\uC694.`);
+  }
+  for (const a of failed) {
+    parts.push(`${a.accountCode} (${a.asOf}): \uC7A5\uBD80\uB294 ${a.actualMinor}, \uB2E8\uC5B8\uC740 ${a.expectedMinor} \u2014 ${a.deltaMinor} \uCC28\uC774.`);
+  }
+  return {
+    ok: parts.length === 0,
+    draftCount,
+    failedAssertions: failed,
+    explanation: parts.length === 0 ? `\uB9C8\uAC10 \uAC00\uB2A5` : parts.join("\n")
+  };
+}
+
 // ../core/dist/domain/loan.js
 var LoanError = class extends Error {
   constructor(message) {
@@ -8828,6 +8881,18 @@ var MIGRATIONS = [
       "CREATE INDEX `ingest_item_by_dedupe` ON `ingest_item` (`dedupe_key`);",
       "CREATE INDEX `ingest_item_by_batch` ON `ingest_item` (`batch_id`);"
     ]
+  },
+  {
+    "name": "20260717112827_close",
+    "hash": "a0fa3c8bef5f10c51f61bbd6f992481bbf7b6273d43406bccf7f581ee73e881c",
+    "statements": [
+      "CREATE TABLE `balance_assertion` (\n	`id` text PRIMARY KEY,\n	`account_id` text NOT NULL,\n	`as_of` text NOT NULL,\n	`commodity` text NOT NULL,\n	`expected_minor` integer NOT NULL,\n	`note` text,\n	`created_at` text NOT NULL,\n	CONSTRAINT `fk_balance_assertion_account_id_account_id_fk` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),\n	CONSTRAINT `fk_balance_assertion_commodity_commodity_code_fk` FOREIGN KEY (`commodity`) REFERENCES `commodity`(`code`)\n);",
+      "CREATE TABLE `snapshot` (\n	`id` text PRIMARY KEY,\n	`period_id` text NOT NULL,\n	`kind` text NOT NULL,\n	`as_of` text NOT NULL,\n	`created_at` text NOT NULL,\n	CONSTRAINT `fk_snapshot_period_id_period_id_fk` FOREIGN KEY (`period_id`) REFERENCES `period`(`id`),\n	CONSTRAINT \"snapshot_kind_enum\" CHECK(\"kind\" IN ('close','checkpoint'))\n);",
+      "CREATE TABLE `snapshot_balance` (\n	`snapshot_id` text NOT NULL,\n	`account_id` text NOT NULL,\n	`commodity` text NOT NULL,\n	`units_minor` integer NOT NULL,\n	`weight_minor` integer NOT NULL,\n	`period_units_minor` integer DEFAULT 0 NOT NULL,\n	`period_weight_minor` integer DEFAULT 0 NOT NULL,\n	CONSTRAINT `snapshot_balance_pk` PRIMARY KEY(`snapshot_id`, `account_id`, `commodity`),\n	CONSTRAINT `fk_snapshot_balance_snapshot_id_snapshot_id_fk` FOREIGN KEY (`snapshot_id`) REFERENCES `snapshot`(`id`) ON DELETE CASCADE,\n	CONSTRAINT `fk_snapshot_balance_account_id_account_id_fk` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),\n	CONSTRAINT `fk_snapshot_balance_commodity_commodity_code_fk` FOREIGN KEY (`commodity`) REFERENCES `commodity`(`code`)\n);",
+      "CREATE UNIQUE INDEX `balance_assertion_unique` ON `balance_assertion` (`account_id`,`as_of`,`commodity`);",
+      "CREATE INDEX `balance_assertion_by_date` ON `balance_assertion` (`as_of`);",
+      "CREATE UNIQUE INDEX `snapshot_unique` ON `snapshot` (`period_id`,`kind`);"
+    ]
   }
 ];
 
@@ -9377,6 +9442,62 @@ var SqliteUow = class {
       annualRateText: loan2.annualRateText,
       termMonths: loan2.termMonths
     });
+  }
+  async listBalanceAssertions(filter) {
+    const where = [];
+    const params = [];
+    if (filter?.from) {
+      where.push("as_of >= ?");
+      params.push(filter.from);
+    }
+    if (filter?.to) {
+      where.push("as_of <= ?");
+      params.push(filter.to);
+    }
+    return this.db.all(`SELECT * FROM balance_assertion ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY as_of, account_id`, ...params).map((r) => ({
+      id: r.id,
+      accountId: r.account_id,
+      asOf: r.as_of,
+      commodity: r.commodity,
+      expectedMinor: toBigInt(r.expected_minor),
+      note: r.note,
+      createdAt: r.created_at
+    }));
+  }
+  async putBalanceAssertion(a) {
+    this.db.run(`INSERT INTO balance_assertion (id, account_id, as_of, commodity, expected_minor, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, as_of, commodity) DO UPDATE SET
+         expected_minor = excluded.expected_minor, note = excluded.note, created_at = excluded.created_at`, a.id, a.accountId, a.asOf, a.commodity, a.expectedMinor, a.note, a.createdAt);
+    this.#appendAudit("assertion_put", a.accountId, { asOf: a.asOf, expectedMinor: a.expectedMinor.toString() });
+  }
+  async upsertPeriod(p) {
+    this.db.run(`INSERT INTO period (id, grain, start, end, status) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET status = excluded.status`, p.id, p.grain, p.start, p.end, p.status);
+  }
+  async getSnapshot(periodId, kind) {
+    const s = this.db.get("SELECT * FROM snapshot WHERE period_id = ? AND kind = ?", periodId, kind);
+    if (!s)
+      return null;
+    const balances = this.db.all("SELECT * FROM snapshot_balance WHERE snapshot_id = ?", s.id).map((b) => ({
+      accountId: b.account_id,
+      commodity: b.commodity,
+      unitsMinor: toBigInt(b.units_minor),
+      weightMinor: toBigInt(b.weight_minor),
+      periodUnitsMinor: toBigInt(b.period_units_minor),
+      periodWeightMinor: toBigInt(b.period_weight_minor)
+    }));
+    return { id: s.id, periodId: s.period_id, kind: s.kind, asOf: s.as_of, createdAt: s.created_at, balances };
+  }
+  async writeSnapshot(s) {
+    this.db.run(`INSERT INTO snapshot (id, period_id, kind, as_of, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(period_id, kind) DO UPDATE SET as_of = excluded.as_of, created_at = excluded.created_at`, s.id, s.periodId, s.kind, s.asOf, s.createdAt);
+    this.db.run("DELETE FROM snapshot_balance WHERE snapshot_id = ?", s.id);
+    for (const b of s.balances) {
+      this.db.run(`INSERT INTO snapshot_balance (snapshot_id, account_id, commodity, units_minor, weight_minor, period_units_minor, period_weight_minor)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`, s.id, b.accountId, b.commodity, b.unitsMinor, b.weightMinor, b.periodUnitsMinor, b.periodWeightMinor);
+    }
+    this.#appendAudit("snapshot_write", s.periodId, { kind: s.kind, accounts: s.balances.length });
   }
   async listFxRates(filter) {
     const where = [];
@@ -10192,6 +10313,195 @@ recurring.command("list").description("active recurring expenses").action(async 
   if (result.length === 0) return note("no active recurring expenses.");
   note("");
   note(`monthly total: ${amounts.format({ minor: monthly, commodity: config.functionalCurrency })} ${config.functionalCurrency}`);
+});
+program2.command("assert <account> <amount>").description("\uC7A5\uBD80\uAC00 \uC774 \uB0A0\uC9DC\uC5D0 \uC815\uD655\uD788 \uC774\uB7AC\uB2E4\uACE0 \uB2E8\uC5B8\uD55C\uB2E4 \u2014 \uBA85\uC138\uC11C\uB97C \uBCF4\uACE0").option("--as-of <date>", "ISO date", today()).option("--commodity <code>", "\uACC4\uC815 \uD1B5\uD654").option("--note <text>").action(async (code, amountText, o) => {
+  const ws = requireWorkspace();
+  const config = readConfig(ws);
+  const store = await openLedger(ws);
+  const asOf = assertIsoDate(o.asOf);
+  const result = await store.unitOfWork(async (uow) => {
+    const acct = await uow.getAccount(code);
+    if (!acct) throw new UsageError(`no such account: ${code}`);
+    const commodity = o.commodity ?? acct.commodity ?? config.functionalCurrency;
+    const expected = amounts.parse(amountText, commodity);
+    await uow.putBalanceAssertion({
+      id: nextUlid(),
+      accountId: acct.id,
+      asOf,
+      commodity: expected.commodity,
+      expectedMinor: expected.minor,
+      note: o.note ?? null,
+      createdAt: nowIso()
+    });
+    const balances = await uow.getBalances({ asOf, accountIds: [acct.id] });
+    const actual = balances.filter((b) => b.commodity === expected.commodity).reduce((sum, b) => sum + b.unitsMinor, 0n);
+    const signed = acct.type === "liability" || acct.type === "equity" || acct.type === "income" ? -actual : actual;
+    return { ...checkAssertion(expected.minor, signed), expected, actual: signed, code: acct.code };
+  });
+  await store.close();
+  const money = (m) => amounts.formatWithCode({ minor: m, commodity: result.expected.commodity });
+  out({ account: result.code, asOf, expectedMinor: result.expected.minor.toString(), actualMinor: result.actual.toString(), deltaMinor: result.deltaMinor.toString(), ok: result.ok });
+  if (result.ok) {
+    note(`\u2713 ${result.code} (${asOf}) = ${money(result.expected.minor)}`);
+    return;
+  }
+  note(`\u26A0 ${result.code} (${asOf})`);
+  note(`   \uBA85\uC138\uC11C: ${money(result.expected.minor).padStart(18)}`);
+  note(`   \uC7A5\uBD80:   ${money(result.actual).padStart(18)}`);
+  note(`   \uCC28\uC774:   ${money(result.deltaMinor).padStart(18)}`);
+  note(`   \uB193\uCE5C \uAC70\uB798, \uC624\uB3C5\uD55C \uAE08\uC561, \uB610\uB294 \uC911\uBCF5\uC785\uB2C8\uB2E4. \uB9C8\uAC10\uC740 \uC774\uAC8C \uB9DE\uC744 \uB54C\uAE4C\uC9C0 \uB9C9\uD799\uB2C8\uB2E4.`);
+  throw new LedgerError("assertion_failed", `${result.code} disagrees with the ledger by ${result.deltaMinor}`);
+});
+program2.command("close <month>").description("\uC6D4 \uB9C8\uAC10 \u2014 FX \uC7AC\uD3C9\uAC00, \uC2A4\uB0C5\uC0F7, \uC800\uB110 \uC7A0\uAE08").option("--dry-run", "\uBB34\uC5C7\uC774 \uC77C\uC5B4\uB0A0\uC9C0\uB9CC \uBCF4\uC5EC\uC900\uB2E4", false).action(async (month, o) => {
+  const ws = requireWorkspace();
+  const config = readConfig(ws);
+  const store = await openLedger(ws);
+  const bounds = monthBounds(month);
+  const plan = await store.read(async (r) => {
+    const book = await r.getBook();
+    if (book.closeGrain !== "month") {
+      throw new UsageError(`this book hard-closes by ${book.closeGrain}, not month`);
+    }
+    const accounts = await r.listAccounts();
+    const byId = new Map(accounts.map((a) => [a.id, a]));
+    const drafts = await r.listTxns({ from: bounds.start, to: bounds.end, statuses: ["draft"] });
+    const assertions = await r.listBalanceAssertions({ from: bounds.start, to: bounds.end });
+    const checks = [];
+    for (const a of assertions) {
+      const acct = byId.get(a.accountId);
+      if (!acct) continue;
+      const bal = await r.getBalances({ asOf: a.asOf, accountIds: [a.accountId] });
+      const raw = bal.filter((b) => b.commodity === a.commodity).reduce((s2, b) => s2 + b.unitsMinor, 0n);
+      const signed = acct.type === "liability" || acct.type === "equity" || acct.type === "income" ? -raw : raw;
+      checks.push({
+        accountCode: acct.code,
+        asOf: a.asOf,
+        commodity: a.commodity,
+        expectedMinor: a.expectedMinor,
+        actualMinor: signed,
+        ...checkAssertion(a.expectedMinor, signed)
+      });
+    }
+    const balances = await r.getBalances({ asOf: bounds.end });
+    const rates = await r.listFxRates({ to: bounds.end });
+    const revalInputs = [];
+    for (const b of balances) {
+      const acct = byId.get(b.accountId);
+      if (!acct || b.commodity === config.functionalCurrency) continue;
+      if (acct.type !== "asset" && acct.type !== "liability") continue;
+      if (!acct.monetary) continue;
+      if (b.unitsMinor === 0n) {
+        if (b.weightMinor !== 0n) {
+          revalInputs.push({
+            accountId: b.accountId,
+            accountCode: b.accountCode,
+            commodity: b.commodity,
+            unitsMinor: 0n,
+            carryingMinor: b.weightMinor,
+            targetMinor: 0n
+          });
+        }
+        continue;
+      }
+      const resolved = resolveRate(rates, {
+        base: b.commodity,
+        quote: config.functionalCurrency,
+        asOf: bounds.end,
+        maxStalenessDays: book.fxMaxStalenessDays,
+        functional: config.functionalCurrency
+      });
+      revalInputs.push({
+        accountId: b.accountId,
+        accountCode: b.accountCode,
+        commodity: b.commodity,
+        unitsMinor: b.unitsMinor,
+        carryingMinor: b.weightMinor,
+        targetMinor: convert(b.unitsMinor, resolved.rate, registry.exponentOf(b.commodity), registry.exponentOf(config.functionalCurrency))
+      });
+    }
+    return { gate: closeGate(drafts.length, checks), lines: revaluationLines(revalInputs), balances, assertionCount: assertions.length };
+  });
+  if (!plan.gate.ok) {
+    await store.close();
+    note(plan.gate.explanation);
+    throw new LedgerError("close_blocked", `${month} cannot close`);
+  }
+  const money = (m) => amounts.format({ minor: m, commodity: config.functionalCurrency });
+  if (o.dryRun) {
+    await store.close();
+    out({ month, wouldRevalue: plan.lines.length, assertions: plan.assertionCount, dryRun: true });
+    note(`${month} \uB9C8\uAC10 \uAC00\uB2A5. \uB2E8\uC5B8 ${plan.assertionCount}\uAC74 \uD1B5\uACFC.`);
+    for (const l of plan.lines) note(`  \uC7AC\uD3C9\uAC00 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
+    if (plan.lines.length === 0) note("  \uC7AC\uD3C9\uAC00\uD560 \uC678\uD654 \uACC4\uC815 \uC5C6\uC74C.");
+    return;
+  }
+  const result = await store.unitOfWork(async (uow) => {
+    let txnId = null;
+    if (plan.lines.length > 0) {
+      const fxAccount = await uow.getAccount("Income:FX:Unrealized");
+      if (!fxAccount) {
+        throw new UsageError(
+          `\uC7AC\uD3C9\uAC00\uC5D0\uB294 Income:FX:Unrealized \uACC4\uC815\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \`holiday account add Income:FX:Unrealized --commodity ${config.functionalCurrency}\``
+        );
+      }
+      const total = plan.lines.reduce((s2, l) => s2 + l.deltaMinor, 0n);
+      const txn = Txn.create({
+        id: nextUlid(),
+        date: bounds.end,
+        bookingCommodity: config.functionalCurrency,
+        narration: `${month} FX \uC7AC\uD3C9\uAC00`,
+        systemKind: "fx_revaluation",
+        postings: [
+          // units = 0, weight ≠ 0. Changes the KRW carrying value without
+          // touching the foreign balance — only expressible because weight is
+          // stored rather than derived from units × rate.
+          ...plan.lines.map((l) => ({
+            accountId: l.accountId,
+            units: amounts.fromMinor(0n, l.commodity),
+            weightMinor: l.deltaMinor,
+            weightSource: "actual",
+            kind: "fx_revaluation"
+          })),
+          { accountId: fxAccount.id, units: amounts.fromMinor(-total, config.functionalCurrency) }
+        ]
+      });
+      if (!txn.ok) throw new LedgerError("unbalanced", txn.error.map(describeTxnError).join("\n"));
+      await uow.appendTxn(txn.value, { status: "posted" });
+      txnId = txn.value.id;
+    }
+    await uow.upsertPeriod({ id: bounds.id, grain: "month", start: bounds.start, end: bounds.end, status: "open" });
+    const closing = await uow.getBalances({ asOf: bounds.end });
+    const opening = await uow.getBalances({ asOf: bounds.start, to: bounds.start });
+    const openingBy = new Map(opening.map((b) => [`${b.accountId}|${b.commodity}`, b]));
+    const balances = closing.map((b) => {
+      const o2 = openingBy.get(`${b.accountId}|${b.commodity}`);
+      return {
+        accountId: b.accountId,
+        commodity: b.commodity,
+        unitsMinor: b.unitsMinor,
+        weightMinor: b.weightMinor,
+        periodUnitsMinor: b.unitsMinor - (o2?.unitsMinor ?? 0n),
+        periodWeightMinor: b.weightMinor - (o2?.weightMinor ?? 0n)
+      };
+    });
+    await uow.writeSnapshot({
+      id: nextUlid(),
+      periodId: bounds.id,
+      kind: "close",
+      asOf: bounds.end,
+      createdAt: nowIso(),
+      balances
+    });
+    await uow.setPeriodStatus(bounds.id, "closed", { reason: `close ${month}` });
+    return { txnId, accounts: balances.length };
+  });
+  await store.close();
+  out({ month, closed: true, revaluationTxnId: result.txnId, snapshotAccounts: result.accounts });
+  note(`${month} \uB9C8\uAC10. \uC2A4\uB0C5\uC0F7 ${result.accounts}\uAC1C \uACC4\uC815.`);
+  for (const l of plan.lines) note(`  \uC7AC\uD3C9\uAC00 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
+  if (plan.assertionCount === 0) {
+    note(`  \u26A0 \uC774 \uAE30\uAC04\uC5D0 \uC794\uACE0 \uB2E8\uC5B8\uC774 \uC5C6\uC5C8\uC2B5\uB2C8\uB2E4. \uBA85\uC138\uC11C\uC640 \uB300\uC870\uB418\uC9C0 \uC54A\uC740 \uB2EC\uC740 \uC5BC\uB9B0 \uAC83\uC774\uC9C0 \uB9C8\uAC10\uD55C \uAC8C \uC544\uB2D9\uB2C8\uB2E4.`);
+  }
 });
 var fx = program2.command("fx").description("\uD658\uC728 \u2014 \uC808\uB300 \uACFC\uAC70\uB97C \uBC14\uAFB8\uC9C0 \uC54A\uB294\uB2E4");
 fx.command("add <base> <quote> <rate>").description("record a rate. 1 <base> = <rate> <quote>.").requiredOption("--as-of <date>", "the date this rate is for").option("--source <name>", "where it came from", "manual").action(async (base, quote, rateText, o) => {

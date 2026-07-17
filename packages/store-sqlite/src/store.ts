@@ -14,7 +14,11 @@ import {
   type Grain,
   type InstallmentPlan,
   type InstallmentRow,
+  type BalanceAssertion,
   type FxRate,
+  type SnapshotBalance,
+  type SnapshotKind,
+  type SnapshotWithBalances,
   parseRate,
   type IngestBatch,
   type IngestItem,
@@ -865,6 +869,85 @@ class SqliteUow implements LedgerUow {
       annualRateText: loan.annualRateText,
       termMonths: loan.termMonths,
     });
+  }
+
+  async listBalanceAssertions(filter?: { from?: IsoDate; to?: IsoDate }): Promise<readonly BalanceAssertion[]> {
+    const where: string[] = [];
+    const params: SqlValue[] = [];
+    if (filter?.from) { where.push('as_of >= ?'); params.push(filter.from); }
+    if (filter?.to) { where.push('as_of <= ?'); params.push(filter.to); }
+    return this.db
+      .all<{ id: string; account_id: string; as_of: string; commodity: string; expected_minor: bigint; note: string | null; created_at: string }>(
+        `SELECT * FROM balance_assertion ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY as_of, account_id`,
+        ...params,
+      )
+      .map((r) => ({
+        id: r.id,
+        accountId: r.account_id as AccountId,
+        asOf: r.as_of as IsoDate,
+        commodity: r.commodity as CommodityCode,
+        expectedMinor: toBigInt(r.expected_minor),
+        note: r.note,
+        createdAt: r.created_at,
+      }));
+  }
+
+  async putBalanceAssertion(a: BalanceAssertion): Promise<void> {
+    // One claim per account per date per commodity. Two different answers to the
+    // same question is not a record, it is a bug — so a re-assert overwrites.
+    this.db.run(
+      `INSERT INTO balance_assertion (id, account_id, as_of, commodity, expected_minor, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, as_of, commodity) DO UPDATE SET
+         expected_minor = excluded.expected_minor, note = excluded.note, created_at = excluded.created_at`,
+      a.id, a.accountId, a.asOf, a.commodity, a.expectedMinor, a.note, a.createdAt,
+    );
+    this.#appendAudit('assertion_put', a.accountId, { asOf: a.asOf, expectedMinor: a.expectedMinor.toString() });
+  }
+
+  async upsertPeriod(p: Period): Promise<void> {
+    this.db.run(
+      `INSERT INTO period (id, grain, start, end, status) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET status = excluded.status`,
+      p.id, p.grain, p.start, p.end, p.status,
+    );
+  }
+
+  async getSnapshot(periodId: string, kind: SnapshotKind): Promise<SnapshotWithBalances | null> {
+    const s = this.db.get<{ id: string; period_id: string; kind: string; as_of: string; created_at: string }>(
+      'SELECT * FROM snapshot WHERE period_id = ? AND kind = ?', periodId, kind,
+    );
+    if (!s) return null;
+    const balances = this.db
+      .all<{ account_id: string; commodity: string; units_minor: bigint; weight_minor: bigint; period_units_minor: bigint; period_weight_minor: bigint }>(
+        'SELECT * FROM snapshot_balance WHERE snapshot_id = ?', s.id,
+      )
+      .map((b) => ({
+        accountId: b.account_id as AccountId,
+        commodity: b.commodity as CommodityCode,
+        unitsMinor: toBigInt(b.units_minor),
+        weightMinor: toBigInt(b.weight_minor),
+        periodUnitsMinor: toBigInt(b.period_units_minor),
+        periodWeightMinor: toBigInt(b.period_weight_minor),
+      }));
+    return { id: s.id, periodId: s.period_id, kind: s.kind as SnapshotKind, asOf: s.as_of as IsoDate, createdAt: s.created_at, balances };
+  }
+
+  async writeSnapshot(s: SnapshotWithBalances): Promise<void> {
+    this.db.run(
+      `INSERT INTO snapshot (id, period_id, kind, as_of, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(period_id, kind) DO UPDATE SET as_of = excluded.as_of, created_at = excluded.created_at`,
+      s.id, s.periodId, s.kind, s.asOf, s.createdAt,
+    );
+    this.db.run('DELETE FROM snapshot_balance WHERE snapshot_id = ?', s.id);
+    for (const b of s.balances) {
+      this.db.run(
+        `INSERT INTO snapshot_balance (snapshot_id, account_id, commodity, units_minor, weight_minor, period_units_minor, period_weight_minor)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        s.id, b.accountId, b.commodity, b.unitsMinor, b.weightMinor, b.periodUnitsMinor, b.periodWeightMinor,
+      );
+    }
+    this.#appendAudit('snapshot_write', s.periodId, { kind: s.kind, accounts: s.balances.length });
   }
 
   async listFxRates(filter?: { base?: CommodityCode; quote?: CommodityCode; to?: IsoDate }): Promise<readonly FxRate[]> {

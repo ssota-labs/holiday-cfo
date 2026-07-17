@@ -214,11 +214,43 @@ export interface LedgerRead {
   listLoans(): Promise<readonly LoanWithSchedule[]>;
   getLoan(accountId: AccountId): Promise<LoanWithSchedule | null>;
 
+  listBalanceAssertions(filter?: { from?: IsoDate; to?: IsoDate }): Promise<readonly BalanceAssertion[]>;
+  getSnapshot(periodId: string, kind: SnapshotKind): Promise<SnapshotWithBalances | null>;
+
   listFxRates(filter?: { base?: CommodityCode; quote?: CommodityCode; to?: IsoDate }): Promise<readonly FxRate[]>;
 
   findIngestBatchBySha(sha: string): Promise<IngestBatch | null>;
   findIngestItemsByDedupeKey(key: string): Promise<readonly IngestItem[]>;
   listIngestItems(filter?: { status?: IngestItemStatus }): Promise<readonly IngestItem[]>;
+}
+
+export interface BalanceAssertion {
+  readonly id: string;
+  readonly accountId: AccountId;
+  readonly asOf: IsoDate;
+  readonly commodity: CommodityCode;
+  /** What the statement says. The one number in this system that comes from outside it. */
+  readonly expectedMinor: bigint;
+  readonly note: string | null;
+  readonly createdAt: string;
+}
+
+export interface SnapshotBalance {
+  readonly accountId: AccountId;
+  readonly commodity: CommodityCode;
+  readonly unitsMinor: bigint;
+  readonly weightMinor: bigint;
+  readonly periodUnitsMinor: bigint;
+  readonly periodWeightMinor: bigint;
+}
+
+export interface SnapshotWithBalances {
+  readonly id: string;
+  readonly periodId: string;
+  readonly kind: SnapshotKind;
+  readonly asOf: IsoDate;
+  readonly createdAt: string;
+  readonly balances: readonly SnapshotBalance[];
 }
 
 export interface IngestBatch {
@@ -281,6 +313,9 @@ export interface LedgerUow extends LedgerRead {
   upsertLoan(loan: Loan, rows: readonly LoanScheduleRow[]): Promise<void>;
 
   putFxRates(rates: readonly FxRate[]): Promise<number>;
+  putBalanceAssertion(a: BalanceAssertion): Promise<void>;
+  upsertPeriod(p: Period): Promise<void>;
+  writeSnapshot(s: SnapshotWithBalances): Promise<void>;
   recordIngestBatch(b: IngestBatch): Promise<void>;
   recordIngestItem(i: IngestItem): Promise<void>;
   setIngestItemStatus(id: string, status: IngestItemStatus, meta: { reason?: string; txnId?: TxnId }): Promise<void>;

@@ -47,9 +47,15 @@ import {
   type ExistingTxn,
   type FxRate,
   type ParsedTxn,
+  type AssertionCheck,
+  type SnapshotBalance,
   convert,
   formatRate,
   resolveRate,
+  checkAssertion,
+  closeGate,
+  monthBounds,
+  revaluationLines,
   dedupeKey,
   findNearDuplicates,
   sha256,
@@ -651,6 +657,246 @@ recurring
     if (result.length === 0) return note('no active recurring expenses.');
     note('');
     note(`monthly total: ${amounts.format({ minor: monthly, commodity: config.functionalCurrency })} ${config.functionalCurrency}`);
+  });
+
+program
+  .command('assert <account> <amount>')
+  .description('장부가 이 날짜에 정확히 이랬다고 단언한다 — 명세서를 보고')
+  .option('--as-of <date>', 'ISO date', today())
+  .option('--commodity <code>', '계정 통화')
+  .option('--note <text>')
+  .action(async (code: string, amountText: string, o: { asOf: string; commodity?: string; note?: string }) => {
+    const ws = requireWorkspace();
+    const config = readConfig(ws);
+    const store = await openLedger(ws);
+    const asOf = assertIsoDate(o.asOf);
+
+    const result = await store.unitOfWork(async (uow) => {
+      const acct = await uow.getAccount(code);
+      if (!acct) throw new UsageError(`no such account: ${code}`);
+      const commodity = o.commodity ?? acct.commodity ?? config.functionalCurrency;
+      const expected = amounts.parse(amountText, commodity);
+
+      await uow.putBalanceAssertion({
+        id: nextUlid(),
+        accountId: acct.id,
+        asOf,
+        commodity: expected.commodity,
+        expectedMinor: expected.minor,
+        note: o.note ?? null,
+        createdAt: nowIso(),
+      });
+
+      const balances = await uow.getBalances({ asOf, accountIds: [acct.id] });
+      const actual = balances
+        .filter((b) => b.commodity === expected.commodity)
+        .reduce((sum, b) => sum + b.unitsMinor, 0n);
+      // Liability balances are stored as credits; a statement quotes what you owe.
+      const signed = acct.type === 'liability' || acct.type === 'equity' || acct.type === 'income' ? -actual : actual;
+      return { ...checkAssertion(expected.minor, signed), expected, actual: signed, code: acct.code };
+    });
+    await store.close();
+
+    const money = (m: bigint) => amounts.formatWithCode({ minor: m, commodity: result.expected.commodity });
+    out({ account: result.code, asOf, expectedMinor: result.expected.minor.toString(), actualMinor: result.actual.toString(), deltaMinor: result.deltaMinor.toString(), ok: result.ok });
+    if (result.ok) {
+      note(`✓ ${result.code} (${asOf}) = ${money(result.expected.minor)}`);
+      return;
+    }
+    note(`⚠ ${result.code} (${asOf})`);
+    note(`   명세서: ${money(result.expected.minor).padStart(18)}`);
+    note(`   장부:   ${money(result.actual).padStart(18)}`);
+    note(`   차이:   ${money(result.deltaMinor).padStart(18)}`);
+    // This is the ONLY check that compares the ledger to the outside world.
+    note(`   놓친 거래, 오독한 금액, 또는 중복입니다. 마감은 이게 맞을 때까지 막힙니다.`);
+    throw new LedgerError('assertion_failed', `${result.code} disagrees with the ledger by ${result.deltaMinor}`);
+  });
+
+program
+  .command('close <month>')
+  .description('월 마감 — FX 재평가, 스냅샷, 저널 잠금')
+  .option('--dry-run', '무엇이 일어날지만 보여준다', false)
+  .action(async (month: string, o: { dryRun: boolean }) => {
+    const ws = requireWorkspace();
+    const config = readConfig(ws);
+    const store = await openLedger(ws);
+    const bounds = monthBounds(month);
+
+    const plan = await store.read(async (r) => {
+      const book = await r.getBook();
+      if (book.closeGrain !== 'month') {
+        throw new UsageError(`this book hard-closes by ${book.closeGrain}, not month`);
+      }
+      const accounts = await r.listAccounts();
+      const byId = new Map(accounts.map((a) => [a.id, a]));
+
+      // Gate 1: drafts must be RESOLVED, not silently excluded.
+      const drafts = await r.listTxns({ from: bounds.start, to: bounds.end, statuses: ['draft'] });
+
+      // Gate 2: every assertion in the period must pass.
+      const assertions = await r.listBalanceAssertions({ from: bounds.start, to: bounds.end });
+      const checks: AssertionCheck[] = [];
+      for (const a of assertions) {
+        const acct = byId.get(a.accountId);
+        if (!acct) continue;
+        const bal = await r.getBalances({ asOf: a.asOf, accountIds: [a.accountId] });
+        const raw = bal.filter((b) => b.commodity === a.commodity).reduce((s2, b) => s2 + b.unitsMinor, 0n);
+        const signed = acct.type === 'liability' || acct.type === 'equity' || acct.type === 'income' ? -raw : raw;
+        checks.push({
+          accountCode: acct.code,
+          asOf: a.asOf,
+          commodity: a.commodity,
+          expectedMinor: a.expectedMinor,
+          actualMinor: signed,
+          ...checkAssertion(a.expectedMinor, signed),
+        });
+      }
+
+      // Revaluation: monetary accounts not in the functional currency.
+      const balances = await r.getBalances({ asOf: bounds.end });
+      const rates = await r.listFxRates({ to: bounds.end });
+      const revalInputs = [];
+      for (const b of balances) {
+        const acct = byId.get(b.accountId);
+        if (!acct || b.commodity === config.functionalCurrency) continue;
+        // IAS 21: only monetary ASSETS and LIABILITIES are revalued — currency
+        // held, and amounts to be received or paid in fixed currency units.
+        //
+        // An expense is not one. It was consumed at the transaction date and
+        // measured there; its KRW cost does not change because the won moved
+        // afterwards. Revaluing it inflates FX P&L by the whole foreign spend,
+        // every close, forever. (Found by walking $1,000 bought at 1300 and spent
+        // at 1350: the answer must be +50,000 and was +120,000.)
+        if (acct.type !== 'asset' && acct.type !== 'liability') continue;
+        if (!acct.monetary) continue;
+        // Zero foreign units are worth zero KRW at any rate, so no rate is needed
+        // to say so. This matters: a spent-out account still has to be revalued —
+        // its leftover carrying IS the realised FX result — and demanding a rate
+        // for it would block a close for no reason.
+        if (b.unitsMinor === 0n) {
+          if (b.weightMinor !== 0n) {
+            revalInputs.push({
+              accountId: b.accountId,
+              accountCode: b.accountCode,
+              commodity: b.commodity,
+              unitsMinor: 0n,
+              carryingMinor: b.weightMinor,
+              targetMinor: 0n,
+            });
+          }
+          continue;
+        }
+        const resolved = resolveRate(rates, {
+          base: b.commodity,
+          quote: config.functionalCurrency,
+          asOf: bounds.end,
+          maxStalenessDays: book.fxMaxStalenessDays,
+          functional: config.functionalCurrency,
+        });
+        revalInputs.push({
+          accountId: b.accountId,
+          accountCode: b.accountCode,
+          commodity: b.commodity,
+          unitsMinor: b.unitsMinor,
+          carryingMinor: b.weightMinor,
+          targetMinor: convert(b.unitsMinor, resolved.rate, registry.exponentOf(b.commodity), registry.exponentOf(config.functionalCurrency)),
+        });
+      }
+      return { gate: closeGate(drafts.length, checks), lines: revaluationLines(revalInputs), balances, assertionCount: assertions.length };
+    });
+
+    if (!plan.gate.ok) {
+      await store.close();
+      note(plan.gate.explanation);
+      throw new LedgerError('close_blocked', `${month} cannot close`);
+    }
+
+    const money = (m: bigint) => amounts.format({ minor: m, commodity: config.functionalCurrency });
+    if (o.dryRun) {
+      await store.close();
+      out({ month, wouldRevalue: plan.lines.length, assertions: plan.assertionCount, dryRun: true });
+      note(`${month} 마감 가능. 단언 ${plan.assertionCount}건 통과.`);
+      for (const l of plan.lines) note(`  재평가 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
+      if (plan.lines.length === 0) note('  재평가할 외화 계정 없음.');
+      return;
+    }
+
+    const result = await store.unitOfWork(async (uow) => {
+      // The revaluation is posted while the period is still OPEN, so the
+      // closed-period guard never needs a bypass. Order matters.
+      let txnId: string | null = null;
+      if (plan.lines.length > 0) {
+        const fxAccount = await uow.getAccount('Income:FX:Unrealized');
+        if (!fxAccount) {
+          throw new UsageError(
+            `재평가에는 Income:FX:Unrealized 계정이 필요합니다. ` +
+              `\`holiday account add Income:FX:Unrealized --commodity ${config.functionalCurrency}\``,
+          );
+        }
+        const total = plan.lines.reduce((s2, l) => s2 + l.deltaMinor, 0n);
+        const txn = Txn.create({
+          id: nextUlid() as TxnId,
+          date: bounds.end,
+          bookingCommodity: config.functionalCurrency,
+          narration: `${month} FX 재평가`,
+          systemKind: 'fx_revaluation',
+          postings: [
+            // units = 0, weight ≠ 0. Changes the KRW carrying value without
+            // touching the foreign balance — only expressible because weight is
+            // stored rather than derived from units × rate.
+            ...plan.lines.map((l) => ({
+              accountId: l.accountId,
+              units: amounts.fromMinor(0n, l.commodity),
+              weightMinor: l.deltaMinor,
+              weightSource: 'actual' as const,
+              kind: 'fx_revaluation' as const,
+            })),
+            { accountId: fxAccount.id, units: amounts.fromMinor(-total, config.functionalCurrency) },
+          ],
+        });
+        if (!txn.ok) throw new LedgerError('unbalanced', txn.error.map(describeTxnError).join('\n'));
+        await uow.appendTxn(txn.value, { status: 'posted' });
+        txnId = txn.value.id;
+      }
+
+      await uow.upsertPeriod({ id: bounds.id, grain: 'month', start: bounds.start, end: bounds.end, status: 'open' });
+
+      // Snapshot AFTER revaluation, so it records what the period was actually worth.
+      const closing = await uow.getBalances({ asOf: bounds.end });
+      const opening = await uow.getBalances({ asOf: bounds.start, to: bounds.start });
+      const openingBy = new Map(opening.map((b) => [`${b.accountId}|${b.commodity}`, b]));
+      const balances: SnapshotBalance[] = closing.map((b) => {
+        const o2 = openingBy.get(`${b.accountId}|${b.commodity}`);
+        return {
+          accountId: b.accountId,
+          commodity: b.commodity,
+          unitsMinor: b.unitsMinor,
+          weightMinor: b.weightMinor,
+          periodUnitsMinor: b.unitsMinor - (o2?.unitsMinor ?? 0n),
+          periodWeightMinor: b.weightMinor - (o2?.weightMinor ?? 0n),
+        };
+      });
+      await uow.writeSnapshot({
+        id: nextUlid(),
+        periodId: bounds.id,
+        kind: 'close',
+        asOf: bounds.end,
+        createdAt: nowIso(),
+        balances,
+      });
+
+      await uow.setPeriodStatus(bounds.id, 'closed', { reason: `close ${month}` });
+      return { txnId, accounts: balances.length };
+    });
+    await store.close();
+
+    out({ month, closed: true, revaluationTxnId: result.txnId, snapshotAccounts: result.accounts });
+    note(`${month} 마감. 스냅샷 ${result.accounts}개 계정.`);
+    for (const l of plan.lines) note(`  재평가 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
+    if (plan.assertionCount === 0) {
+      // Not a hard gate — a new ledger has none — but worth saying.
+      note(`  ⚠ 이 기간에 잔고 단언이 없었습니다. 명세서와 대조되지 않은 달은 얼린 것이지 마감한 게 아닙니다.`);
+    }
   });
 
 const fx = program.command('fx').description('환율 — 절대 과거를 바꾸지 않는다');

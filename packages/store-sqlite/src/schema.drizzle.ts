@@ -450,3 +450,91 @@ export const ingestItem = sqliteTable(
     check('ingest_item_authority_enum', sql`${t.dedupeAuthority} IN ('image','external_ref','natural')`),
   ],
 );
+
+/**
+ * 잔고 단언 — "on this date, this account held exactly this."
+ *
+ * The only real defense against the weakest link in the system. Everything else
+ * here guards structure: the balance rule, the commodity triggers, the audit
+ * chain. None of them can tell that the vision model read ₩1,240,00 instead of
+ * ₩1,240,000 — both produce a perfectly balanced, perfectly conformant ledger.
+ *
+ * An assertion is the one place a number from OUTSIDE the ledger enters and gets
+ * compared. It turns "the model might be wrong" into "the ledger disagrees with
+ * your bank by ₩X on this date", which is actionable.
+ *
+ * That is why `close` gates on it: a month whose balances were never checked
+ * against reality is not closed, it is only frozen.
+ */
+export const balanceAssertion = sqliteTable(
+  'balance_assertion',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => account.id),
+    asOf: text('as_of').notNull(),
+    commodity: text('commodity')
+      .notNull()
+      .references(() => commodity.code),
+    /** What the statement says. i64 minor units. */
+    expectedMinor: integer('expected_minor').notNull(),
+    note: text('note'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    // One claim per account per date per commodity. Two different answers to the
+    // same question is not a record, it is a bug.
+    uniqueIndex('balance_assertion_unique').on(t.accountId, t.asOf, t.commodity),
+    index('balance_assertion_by_date').on(t.asOf),
+  ],
+);
+
+/**
+ * A closed period, and what it was worth.
+ *
+ * `close` writes the FX revaluation while the period is still open (so the
+ * closed-period guard never has to be bypassed), snapshots every balance, then
+ * flips the status. The snapshot is what gives carry-forward and a self-contained
+ * balance sheet WITHOUT posting closing entries into equity — those exist because
+ * paper ledgers could not compute a period-scoped sum. We have SQL.
+ */
+export const snapshot = sqliteTable(
+  'snapshot',
+  {
+    id: text('id').primaryKey(),
+    periodId: text('period_id')
+      .notNull()
+      .references(() => period.id),
+    kind: text('kind').notNull(),
+    asOf: text('as_of').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('snapshot_unique').on(t.periodId, t.kind),
+    check('snapshot_kind_enum', sql`${t.kind} IN ('close','checkpoint')`),
+  ],
+);
+
+export const snapshotBalance = sqliteTable(
+  'snapshot_balance',
+  {
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => snapshot.id, { onDelete: 'cascade' }),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => account.id),
+    commodity: text('commodity')
+      .notNull()
+      .references(() => commodity.code),
+    /** Closing units in the account's own commodity. */
+    unitsMinor: integer('units_minor').notNull(),
+    /** Closing KRW carrying value — free, it is just SUM(weight_minor). */
+    weightMinor: integer('weight_minor').notNull(),
+    /** Movement during the period, for a period-scoped report without a query. */
+    periodUnitsMinor: integer('period_units_minor').notNull().default(0),
+    periodWeightMinor: integer('period_weight_minor').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.snapshotId, t.accountId, t.commodity] })],
+);

@@ -81,5 +81,17 @@ export const MIGRATIONS: readonly InlinedMigration[] = [
       "CREATE INDEX `ingest_item_by_dedupe` ON `ingest_item` (`dedupe_key`);",
       "CREATE INDEX `ingest_item_by_batch` ON `ingest_item` (`batch_id`);"
     ]
+  },
+  {
+    "name": "20260717112827_close",
+    "hash": "a0fa3c8bef5f10c51f61bbd6f992481bbf7b6273d43406bccf7f581ee73e881c",
+    "statements": [
+      "CREATE TABLE `balance_assertion` (\n\t`id` text PRIMARY KEY,\n\t`account_id` text NOT NULL,\n\t`as_of` text NOT NULL,\n\t`commodity` text NOT NULL,\n\t`expected_minor` integer NOT NULL,\n\t`note` text,\n\t`created_at` text NOT NULL,\n\tCONSTRAINT `fk_balance_assertion_account_id_account_id_fk` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),\n\tCONSTRAINT `fk_balance_assertion_commodity_commodity_code_fk` FOREIGN KEY (`commodity`) REFERENCES `commodity`(`code`)\n);",
+      "CREATE TABLE `snapshot` (\n\t`id` text PRIMARY KEY,\n\t`period_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`as_of` text NOT NULL,\n\t`created_at` text NOT NULL,\n\tCONSTRAINT `fk_snapshot_period_id_period_id_fk` FOREIGN KEY (`period_id`) REFERENCES `period`(`id`),\n\tCONSTRAINT \"snapshot_kind_enum\" CHECK(\"kind\" IN ('close','checkpoint'))\n);",
+      "CREATE TABLE `snapshot_balance` (\n\t`snapshot_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`commodity` text NOT NULL,\n\t`units_minor` integer NOT NULL,\n\t`weight_minor` integer NOT NULL,\n\t`period_units_minor` integer DEFAULT 0 NOT NULL,\n\t`period_weight_minor` integer DEFAULT 0 NOT NULL,\n\tCONSTRAINT `snapshot_balance_pk` PRIMARY KEY(`snapshot_id`, `account_id`, `commodity`),\n\tCONSTRAINT `fk_snapshot_balance_snapshot_id_snapshot_id_fk` FOREIGN KEY (`snapshot_id`) REFERENCES `snapshot`(`id`) ON DELETE CASCADE,\n\tCONSTRAINT `fk_snapshot_balance_account_id_account_id_fk` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),\n\tCONSTRAINT `fk_snapshot_balance_commodity_commodity_code_fk` FOREIGN KEY (`commodity`) REFERENCES `commodity`(`code`)\n);",
+      "CREATE UNIQUE INDEX `balance_assertion_unique` ON `balance_assertion` (`account_id`,`as_of`,`commodity`);",
+      "CREATE INDEX `balance_assertion_by_date` ON `balance_assertion` (`as_of`);",
+      "CREATE UNIQUE INDEX `snapshot_unique` ON `snapshot` (`period_id`,`kind`);"
+    ]
   }
 ];
