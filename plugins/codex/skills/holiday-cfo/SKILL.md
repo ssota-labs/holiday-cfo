@@ -56,13 +56,31 @@ holiday cashflow --until 2026-12-31   # will the cash survive what is already co
 from today's cash and subtracts every card bill, 할부 row and 정기지출 already
 committed, and flags the day the balance goes negative. Read the ⚠ line out loud.
 
+**What-if, without writing anything:** `holiday cashflow --spend "2026-09-01 5000000
+새 노트북" --receive "2026-12-25 3000000 보너스"` folds hypotheticals into the runway
+and touches nothing. `--spend` leaves, `--receive` arrives, both repeat. See the
+Simulate workflow in `references/workflows.md`.
+
+## Workflows
+
+The real uses are routines, not one-off commands — full detail in
+`references/workflows.md`, scheduling in `references/automation.md`:
+
+- **Setup** — accounts, opening balances, import a CSV/Excel history (you read the
+  file and script the entries), then offer to schedule the rest.
+- **Daily** — record yesterday, show tomorrow's cash flow.
+- **Weekly** (Sunday) — assets & liabilities, next week's cash flow, this week reviewed.
+- **Monthly** (1st) — assert balances, then `holiday close`.
+- **Simulate** — `cashflow --spend/--receive` on a big decision.
+- **Ask** — answer from the ledger; compute, don't give market advice.
+
 ## Recording from a screenshot
 
-What you submit lands as a **draft**, excluded from every balance until a human
-accepts it. Pass `--idem-key` on every submit so a retry replays instead of
-double-posting. The draft must balance, and the gate is not permission to guess —
-a human confirming `₩1,240,00` confirms it wrong. See `references/recipes.md` for
-the exact `ingest submit` shape and the review flow.
+Read it and record it directly with `holiday txn add` — the review queue is for when
+you genuinely want a human to check a batch first, not a default. You are the parser
+(no OCR), so read the amount carefully; when it is unclear, ask rather than guess. A
+mistake is one correcting entry, not a crisis. The draft/review flow, when you do
+want it, is in `references/recipes.md`.
 
 ## Showing it as a dashboard
 
@@ -90,6 +108,8 @@ Read the one that matches the task, not upfront.
 
 | File | Read it when |
 |---|---|
+| `references/workflows.md` | Running a routine — setup, daily, weekly, monthly, simulate, CSV/Excel import. The main map. |
+| `references/automation.md` | Scheduling a workflow (Codex Automations / `codex exec` + cron). |
 | `references/ledger-model.md` | Explaining *why* a number is what it is — units vs weight, the no-tolerance rule, foreign currency. |
 | `references/accounts.md` | Creating or naming an account. |
 | `references/schedules.md` | Setting up a card cycle, 할부, or 정기지출. |

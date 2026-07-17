@@ -52,41 +52,43 @@ If a command reports `no .holiday/ found`, the user has no ledger here yet.
 `holiday init --currency KRW` creates one — but ask first, and tell them the
 directory must be a **private** repository.
 
+## Workflows
+
+The real uses of this tool are routines, not one-off commands. Full detail in
+`references/workflows.md`; schedule them on this host via `references/automation.md`.
+
+| Workflow | When | What |
+|---|---|---|
+| **Setup** | first session | accounts, opening balances, import a CSV/Excel history (you read the file and script the entries), then offer to schedule the rest |
+| **Daily** | each morning | record yesterday, show tomorrow's cash flow |
+| **Weekly** | Sunday | assets & liabilities, next week's cash flow, this week reviewed |
+| **Monthly** | 1st | assert balances, then `holiday close` |
+| **Simulate** | a big decision | `cashflow --spend/--receive` — what-if, folded in, nothing written |
+| **Ask** | anytime | answer from the ledger; compute, don't give market advice |
+
+**Record directly with `holiday txn add`.** The review queue is for when you are
+genuinely unsure, not a default — the user asked not to approve every coffee, and a
+mistake is one more correcting entry, not a lost afternoon.
+
 ## From a screenshot
 
-There is a review gate now: what you submit lands as a **draft**, excluded from
-every balance until a human accepts it.
+Read the transaction and record it directly — `holiday txn add`, same as any other
+entry. You are the parser (there is no OCR), so read the amount carefully:
+everything downstream trusts that you saw `₩1,240,000` and not `₩1,240,00`. When an
+amount is unclear, ask — do not guess.
+
+Only reach for the review queue when you genuinely want a human to check a batch
+before it counts. It holds entries as drafts until accepted:
 
 ```bash
-holiday ingest submit --idem-key K1 --data '{
-  "items": [{
-    "date": "2026-07-17",
-    "payee": "이마트",
-    "externalRef": "TX-99",
-    "legs": [
-      {"account": "Expenses:Food:Groceries", "amount": "42000", "commodity": "KRW"},
-      {"account": "Liabilities:Card:Shinhan", "amount": "-42000", "commodity": "KRW"}
-    ]
-  }]
-}'
-holiday review list            # show the human what you propose
-holiday review accept <id>     # after they confirm
-holiday review reject <id> --reason "..."
+holiday ingest submit --idem-key K1 --data '{ "items": [ ... ] }'   # schema in recipes.md
+holiday review list
+holiday review accept <id>
 ```
 
-Pass `--idem-key` on every submit. If the call times out and you retry with the
-same key, it replays instead of posting twice.
-
-Read `externalRef` off the screenshot whenever the issuer prints a transaction
-id — it is the only thing that can tell two identical purchases apart, and it
-turns duplicate detection from a guess into a fact.
-
-The draft still has to balance: an unbalanced submission is refused outright, so
-you cannot park a broken entry in the queue for someone else to fix.
-
-**The gate is not permission to guess.** It catches a wrong category, not a
-misread amount — a human confirming `₩1,240,00` will confirm it wrong. Stop and
-ask when the amount is unclear.
+Pass `--idem-key` so a retry replays instead of double-posting, and read
+`externalRef` off the screenshot when the issuer prints a transaction id — it is
+what tells two identical purchases apart.
 
 ## Recording a transaction directly
 
@@ -156,6 +158,20 @@ today's cash and subtracts every card bill, 할부 row, and 정기지출 that is
 already coming, and flags the day the balance goes negative. Read the ⚠ line out
 loud — that is the answer.
 
+**What-if, without writing anything.** For "이 대출 받으면?", "집 사면?", fold the
+hypotheticals straight into the runway — do not create and delete speculative
+transactions:
+
+```bash
+holiday cashflow --until 2027-06-30 \
+  --spend "2026-09-01 5000000 새 노트북" \
+  --receive "2026-12-25 3000000 보너스"
+```
+
+`--spend` is money leaving, `--receive` is arriving — no sign to guess — and both
+repeat. Each appears as `가정: <label>`; the ledger is untouched. See the Simulate
+workflow in `references/workflows.md`.
+
 ## Showing it as a dashboard
 
 When the user wants to *see* it, not read numbers, scaffold a dashboard:
@@ -195,6 +211,8 @@ Do not read these upfront. Read the one that matches the task.
 
 | File | Read it when |
 |---|---|
+| `references/workflows.md` | Running a routine — setup, daily, weekly, monthly, simulate, and importing a CSV/Excel history. The main map. |
+| `references/automation.md` | Scheduling a workflow on this host (Claude Code / Cursor / Codex). |
 | `references/ledger-model.md` | The user asks *why* a number is what it is; you need to explain units vs weight, the no-tolerance rule, or foreign currency. |
 | `references/accounts.md` | Creating accounts, or unsure how to name or categorise one. |
 | `references/schedules.md` | Setting up a card billing cycle, a 할부, or a 정기지출 — and the traps in each. |
