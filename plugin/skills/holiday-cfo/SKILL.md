@@ -92,6 +92,49 @@ A card purchase credits the **card**, not cash — no money moves yet. Paying th
 card bill is a separate transaction, later. That gap is the whole point of the
 tool; see `references/ledger-model.md`.
 
+## Foreign currency
+
+A non-KRW leg needs its KRW value. Two ways, and they are not equal:
+
+```bash
+# both sides observed — the rate is a FACT
+--leg "Assets:Bank:Wise:USD 750.00 USD @@ 1000000"
+
+# only one side observed — derived from the rate table, marked fx_estimated
+holiday fx add USD KRW 1333.33 --as-of 2026-07-17
+holiday txn add --leg "Expenses:Food:Dining 12.50 USD" --leg "Liabilities:Card:Shinhan -12.50 USD"
+```
+
+Prefer `@@` whenever the statement shows the KRW amount. A derived weight is
+provisional; an observed one is not.
+
+`holiday fx show USD KRW` says which rate would be used and why — exact, stale,
+inverted, or triangulated. If it says stale, the user should know.
+
+**A rate never changes a posted number.** Weights are stored as facts, so adding
+or correcting a rate only affects future derivations and revaluation. Say so if
+the user worries about it.
+
+## 마감
+
+```bash
+holiday assert Assets:Bank:KB:Checking 4310000 --as-of 2026-07-31
+holiday close 2026-07 --dry-run
+holiday close 2026-07
+```
+
+**Assertions are the only check that compares the ledger to the outside world.**
+Everything else here guards structure — none of it can tell that you read
+₩1,240,00 instead of ₩1,240,000. When the user has a statement in front of them,
+assert the balance. That is the whole defense against your own misreading.
+
+`close` refuses over unresolved drafts or a failing assertion, and reports every
+reason at once. Both refusals are the point, not obstacles — a month with an
+unreviewed screenshot is frozen, not closed.
+
+Closing posts an FX revaluation for foreign monetary accounts. It needs a rate at
+the month end and an `Income:FX:Unrealized` account.
+
 ## Answering "현금흐름 괜찮아?"
 
 ```bash
@@ -124,5 +167,6 @@ Say so plainly rather than improvising:
 - **할부수수료 is not computed.** Read the per-row fees off the statement and pass
   `--fees`; issuer formulas differ and a plausible wrong number would corrupt the
   cash flow projection.
-- **No period close and no FX rate table.** A non-KRW leg needs its total via
-  `@@` — there is nothing to look a rate up in.
+- **No auto-fetched rates.** `holiday fx add` takes a rate you supply; nothing
+  calls an API. A missing rate throws rather than guessing.
+- **No Supabase adapter and no dashboard.** SQLite only, local only.

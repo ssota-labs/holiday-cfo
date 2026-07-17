@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
   - "apps/*"
+  # The plugin is a workspace member only so its skill↔CLI check runs in CI.
+  - "plugin"
 allowBuilds:
   # Needed by vitest and by the tsup bundle that becomes plugin/bin/holiday.mjs.
   esbuild: true

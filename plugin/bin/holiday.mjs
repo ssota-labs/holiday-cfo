@@ -9967,7 +9967,7 @@ account.command("list").description("list accounts").action(async () => {
     note(`${a.code.padEnd(40)} ${(a.commodity ?? "(multi)").padEnd(8)} ${tags}`);
   }
 });
-program2.command("txn").command("add").description("record a transaction").option("--date <date>", "ISO date", today()).option("--payee <name>").option("--narration <text>", "", "").requiredOption(
+program2.command("txn").description("\uAC70\uB798 \uAE30\uB85D").command("add").description("record a transaction").option("--date <date>", "ISO date", today()).option("--payee <name>").option("--narration <text>", "", "").requiredOption(
   "--leg <leg...>",
   "ACCOUNT AMOUNT COMMODITY [@@ TOTAL]. Repeatable. Must sum to zero in the functional currency."
 ).option("--draft", "record as a draft pending review", false).action(async (o) => {

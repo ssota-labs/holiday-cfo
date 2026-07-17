@@ -175,6 +175,7 @@ account
 
 program
   .command('txn')
+  .description('거래 기록')
   .command('add')
   .description('record a transaction')
   .option('--date <date>', 'ISO date', today())
