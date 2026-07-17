@@ -11,6 +11,22 @@ summary: Node ≥ 24 CLI. 기능통화는 init으로 설정하고, 원장은 작
 런타임은 **Node ≥ 24**다(`node:sqlite`, `--experimental-strip-types`). CLI가 쓰는
 저장소는 작업 디렉터리의 로컬 파일 `.holiday/ledger.db`(SQLite)뿐이다.
 
+## 저장 데이터
+
+`.holiday/ledger.db`에 다음을 저장합니다. 잔액·현금흐름은 저장하지 않고 조회 시
+집계합니다.
+
+| 구분 | 내용 |
+|---|---|
+| 원장 | 계정, 거래(`txn`), 전기(`posting`: units·weight) |
+| 스케줄 | 카드 청구주기, 할부, 정기지출, 대출 상환 계획 |
+| 환율 | 수동 등록한 환율 (`fx_rate`) |
+| 마감 | 잔액 대사, 기간(`period`), 마감 스냅샷 |
+| 데이터 수집 | draft 배치·항목 (`ingest_*`), 검토 상태 |
+| 감사 | `audit_log` 해시 체인, 명령 멱등 로그 |
+
+스키마 상세는 [데이터 모델](/docs/dev/data-model)을 참고합니다.
+
 ## 빠른 시작
 
 ```bash
