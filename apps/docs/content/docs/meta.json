@@ -5,6 +5,7 @@
     "domain/glossary",
     "domain/policy",
     "---Features---",
+    "features/accounts",
     "features/ingest",
     "features/fx",
     "features/close",
