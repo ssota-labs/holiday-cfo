@@ -140,7 +140,7 @@ cash on hand (2026-07-17):  3000000 KRW
 <CommandSpec
   command="assert"
   mutates={true}
-  summary="명세서를 기준으로 계정 잔고를 단언한다. 외부 세계와 대조하는 유일한 검사."
+  summary="명세서 잔액과 장부 잔액을 대조한다. 외부 자료와 비교하는 유일한 검사."
   signature={`holiday assert <ACCOUNT> <AMOUNT>
   [--as-of YYYY-MM-DD] [--commodity CODE] [--note TEXT]`}
   flags={[
@@ -149,16 +149,16 @@ cash on hand (2026-07-17):  3000000 KRW
     { name: '--note', type: 'string' },
   ]}
   exits={[
-    { code: 0, meaning: '단언 기록·일치' },
+    { code: 0, meaning: '대사 기록·일치' },
     { code: 1, meaning: 'assertion_failed — 장부와 명세서 불일치' },
     { code: 2, meaning: '없는 계정 등' },
   ]}
 />
 
-`close`는 기간 내 draft 미해소 또는 실패한 assertion이 있으면 거부한다
+`close`는 기간 내 draft 미해소 또는 실패한 잔액 대사가 있으면 거부한다
 (`close_blocked`). 통과 시 FX 재평가 → 스냅샷 → `period.status=closed`다.
 닫힌 기간으로의 추가 기표 거부는 아직 store에 없다. 상세는
-[잔고 단언과 월 마감](/docs/features/close)·[데이터 모델](/docs/dev/data-model)을 본다.
+[잔액 대사와 월 마감](/docs/features/close)·[데이터 모델](/docs/dev/data-model)을 본다.
 
 <CommandSpec
   command="verify"
