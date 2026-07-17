@@ -1,20 +1,30 @@
 {
-  "name": "@holiday/store-testkit",
+  "name": "@holiday-cfo/store-testkit",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "exports": {
     ".": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@holiday/core": "workspace:*"
+    "@holiday-cfo/core": "workspace:*"
   },
   "peerDependencies": {
     "vitest": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssota-labs/holiday.git",
+    "directory": "packages/store-testkit"
   }
 }

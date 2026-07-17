@@ -5,7 +5,7 @@
  * follows, for the same reason. `0.1 + 0.2 !== 0.3` is funny in a blog post and
  * not funny in an amortization schedule compounded 360 times.
  *
- * decimal.js would also work and is pure JS. It is not used because @holiday/core
+ * decimal.js would also work and is pure JS. It is not used because @holiday-cfo/core
  * gets inlined into a single-file plugin binary with no install step, and this is
  * forty lines.
  */

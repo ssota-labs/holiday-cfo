@@ -3,8 +3,8 @@
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 
-import { cn } from "@holiday/ui/lib/utils"
-import { Button } from "@holiday/ui/components/button"
+import { cn } from "@holiday-cfo/ui/lib/utils"
+import { Button } from "@holiday-cfo/ui/components/button"
 import { IconX } from "@tabler/icons-react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {

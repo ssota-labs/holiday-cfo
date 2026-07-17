@@ -11,7 +11,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
-    "bundle:plugin": "pnpm --filter @holiday/cli run bundle"
+    "bundle:plugin": "pnpm --filter @holiday-cfo/cli run bundle"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

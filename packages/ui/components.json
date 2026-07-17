@@ -11,11 +11,11 @@
   },
   "iconLibrary": "tabler",
   "aliases": {
-    "components": "@holiday/ui/components",
-    "utils": "@holiday/ui/lib/utils",
-    "hooks": "@holiday/ui/hooks",
-    "lib": "@holiday/ui/lib",
-    "ui": "@holiday/ui/components"
+    "components": "@holiday-cfo/ui/components",
+    "utils": "@holiday-cfo/ui/lib/utils",
+    "hooks": "@holiday-cfo/ui/hooks",
+    "lib": "@holiday-cfo/ui/lib",
+    "ui": "@holiday-cfo/ui/components"
   },
   "rtl": false,
   "menuColor": "inverted-translucent",

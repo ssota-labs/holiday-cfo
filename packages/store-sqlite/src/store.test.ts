@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import type { CommodityCode } from '@holiday/core';
-import { runLedgerStoreConformance, seed, simpleTxn } from '@holiday/store-testkit';
+import type { CommodityCode } from '@holiday-cfo/core';
+import { runLedgerStoreConformance, seed, simpleTxn } from '@holiday-cfo/store-testkit';
 
 import { Db } from './db.js';
-import { MigrationDriftError } from '@holiday/store-sql';
+import { MigrationDriftError } from '@holiday-cfo/store-sql';
 import { sqliteLedgerStore } from './store.js';
 
 const dirs: string[] = [];

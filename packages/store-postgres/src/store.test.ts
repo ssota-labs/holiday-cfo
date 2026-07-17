@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
-import type { CommodityCode } from '@holiday/core';
-import { runLedgerStoreConformance } from '@holiday/store-testkit';
+import type { CommodityCode } from '@holiday-cfo/core';
+import { runLedgerStoreConformance } from '@holiday-cfo/store-testkit';
 import { describe, expect, it } from 'vitest';
 
 import { type PgClient, pgliteClient } from './client.js';

@@ -54,7 +54,7 @@ import {
   sha256,
   sha256Bytes,
   scheduleInterest,
-} from '@holiday/core';
+} from '@holiday-cfo/core';
 
 import { INGEST_SUBMISSION, type IngestItemInput } from './ingest.js';
 import { type DeriveWeight, UsageError, parseLeg } from './legs.js';

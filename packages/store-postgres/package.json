@@ -1,5 +1,5 @@
 {
-  "name": "@holiday/store-postgres",
+  "name": "@holiday-cfo/store-postgres",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
@@ -18,8 +18,8 @@
     "migrations:build": "pnpm run migrations:generate && pnpm run migrations:inline"
   },
   "dependencies": {
-    "@holiday/core": "workspace:*",
-    "@holiday/store-sql": "workspace:*"
+    "@holiday-cfo/core": "workspace:*",
+    "@holiday-cfo/store-sql": "workspace:*"
   },
   "peerDependencies": {
     "postgres": "^3.4.0"
@@ -31,9 +31,17 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
-    "@holiday/store-testkit": "workspace:*",
+    "@holiday-cfo/store-testkit": "workspace:*",
     "drizzle-kit": "1.0.0-rc.4",
     "drizzle-orm": "1.0.0-rc.4",
     "postgres": "^3.4.9"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssota-labs/holiday.git",
+    "directory": "packages/store-postgres"
   }
 }

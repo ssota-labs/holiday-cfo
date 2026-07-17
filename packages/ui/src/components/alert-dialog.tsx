@@ -3,8 +3,8 @@
 import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog"
 
-import { cn } from "@holiday/ui/lib/utils"
-import { Button } from "@holiday/ui/components/button"
+import { cn } from "@holiday-cfo/ui/lib/utils"
+import { Button } from "@holiday-cfo/ui/components/button"
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />

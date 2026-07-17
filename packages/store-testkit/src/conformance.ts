@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { foldBalances, type LedgerStore, type BalanceRow } from '@holiday/core';
+import { foldBalances, type LedgerStore, type BalanceRow } from '@holiday-cfo/core';
 
 import { amounts, DATE, fxTxn, forgedUnbalancedTxn, type Fixture, KRW, newTxnId, seed, simpleTxn } from './fixtures.js';
 
@@ -185,7 +185,7 @@ export function runLedgerStoreConformance(name: string, factory: () => Promise<L
             },
           ],
         };
-        const { Txn } = await import('@holiday/core');
+        const { Txn } = await import('@holiday-cfo/core');
         await expect(
           store.unitOfWork((uow) => uow.appendTxn(Txn.trustFromStorage(tx), { status: 'posted' })),
         ).rejects.toThrow();

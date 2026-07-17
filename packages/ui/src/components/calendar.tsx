@@ -8,8 +8,8 @@ import {
   type Locale,
 } from "react-day-picker"
 
-import { cn } from "@holiday/ui/lib/utils"
-import { Button, buttonVariants } from "@holiday/ui/components/button"
+import { cn } from "@holiday-cfo/ui/lib/utils"
+import { Button, buttonVariants } from "@holiday-cfo/ui/components/button"
 import { IconChevronLeft, IconChevronRight, IconChevronDown } from "@tabler/icons-react"
 
 function Calendar({

@@ -1,6 +1,6 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
-import { cn } from "@holiday/ui/lib/utils"
+import { cn } from "@holiday-cfo/ui/lib/utils"
 
 function Slider({
   className,

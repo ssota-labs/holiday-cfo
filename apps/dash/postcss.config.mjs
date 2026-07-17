@@ -1,1 +1,0 @@
-export { default } from "@holiday/ui/postcss.config";

@@ -3,18 +3,18 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
-import { cn } from "@holiday/ui/lib/utils"
+import { cn } from "@holiday-cfo/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@holiday/ui/components/dialog"
+} from "@holiday-cfo/ui/components/dialog"
 import {
   InputGroup,
   InputGroupAddon,
-} from "@holiday/ui/components/input-group"
+} from "@holiday-cfo/ui/components/input-group"
 import { IconSearch, IconCheck } from "@tabler/icons-react"
 
 function Command({

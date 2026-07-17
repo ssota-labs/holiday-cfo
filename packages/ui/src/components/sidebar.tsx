@@ -5,24 +5,24 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { useIsMobile } from "@holiday/ui/hooks/use-mobile"
-import { cn } from "@holiday/ui/lib/utils"
-import { Button } from "@holiday/ui/components/button"
-import { Input } from "@holiday/ui/components/input"
-import { Separator } from "@holiday/ui/components/separator"
+import { useIsMobile } from "@holiday-cfo/ui/hooks/use-mobile"
+import { cn } from "@holiday-cfo/ui/lib/utils"
+import { Button } from "@holiday-cfo/ui/components/button"
+import { Input } from "@holiday-cfo/ui/components/input"
+import { Separator } from "@holiday-cfo/ui/components/separator"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@holiday/ui/components/sheet"
-import { Skeleton } from "@holiday/ui/components/skeleton"
+} from "@holiday-cfo/ui/components/sheet"
+import { Skeleton } from "@holiday-cfo/ui/components/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@holiday/ui/components/tooltip"
+} from "@holiday-cfo/ui/components/tooltip"
 import { IconLayoutSidebar } from "@tabler/icons-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"

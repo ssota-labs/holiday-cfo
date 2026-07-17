@@ -8,8 +8,8 @@ import {
   useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller"
 
-import { cn } from "@holiday/ui/lib/utils"
-import { Button } from "@holiday/ui/components/button"
+import { cn } from "@holiday-cfo/ui/lib/utils"
+import { Button } from "@holiday-cfo/ui/components/button"
 import { IconArrowDown } from "@tabler/icons-react"
 
 function MessageScrollerProvider(

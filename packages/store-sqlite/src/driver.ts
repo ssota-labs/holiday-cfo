@@ -1,4 +1,4 @@
-import type { Dialect, SqlDriver, SqlValue } from '@holiday/store-sql';
+import type { Dialect, SqlDriver, SqlValue } from '@holiday-cfo/store-sql';
 
 import { Db } from './db.js';
 

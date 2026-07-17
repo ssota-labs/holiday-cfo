@@ -111,7 +111,7 @@ node:sqlite 드라이버가 없다.
   commit="45b293c"
   rejected={[
     { option: 'IEEE 754 double', because: '0.1 + 0.2 !== 0.3이 블로그 글에선 웃기지만 360번 복리로 굴리면 안 웃기다. 이 원장은 금액에 float을 쓰지 않는데 이율에만 쓸 이유가 없다.' },
-    { option: 'decimal.js', because: '순수 JS라 번들은 되지만, @holiday/core는 설치 스텝 없는 단일파일 플러그인 바이너리에 인라인된다. 의존성은 값어치를 증명해야 하고, 이건 40줄 고정소수점으로 된다.' },
+    { option: 'decimal.js', because: '순수 JS라 번들은 되지만, @holiday-cfo/core는 설치 스텝 없는 단일파일 플러그인 바이너리에 인라인된다. 의존성은 값어치를 증명해야 하고, 이건 40줄 고정소수점으로 된다.' },
   ]}
 >
 18자리 스케일 정수. 360회 곱셈에 누적 오차가 원 단위로 1e-10 수준이라 무의미하다.
@@ -145,7 +145,7 @@ node:sqlite 드라이버가 없다.
 여덟 줄. 구조적 차이는 `node:sqlite`가 동기라는 것 하나뿐이었고, 그건 **드라이버
 인터페이스**를 두라는 근거지 스토어를 하나 더 쓰라는 근거가 아니다.
 
-그래서 `@holiday/store-sql`이 `LedgerStore`를 하나만 구현하고, 엔진 패키지는 드라이버·
+그래서 `@holiday-cfo/store-sql`이 `LedgerStore`를 하나만 구현하고, 엔진 패키지는 드라이버·
 스키마·마이그레이션만 가진다. 8곳은 `Dialect`로 접힌다 — `subtreeWildcard()`와
 `prepare()`, 그리고 엔진의 선택적 `init`/`checkpoint` 훅.
 

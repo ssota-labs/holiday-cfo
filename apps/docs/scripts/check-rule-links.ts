@@ -9,7 +9,7 @@
  *   2. The `it(...)` gets renamed or deleted → the doc cites a test that no longer
  *      exists, which is worse than citing nothing, because it reads as proof.
  *
- * Run: pnpm --filter @holiday/docs check:rules
+ * Run: pnpm --filter @holiday-cfo/docs check:rules
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';

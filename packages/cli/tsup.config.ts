@@ -22,8 +22,8 @@ export default defineConfig({
   target: 'node24',
   outDir: '../../plugin/bin',
   outExtension: () => ({ js: '.mjs' }),
-  // Everything that is not a Node builtin gets inlined: @holiday/core,
-  // @holiday/store-sqlite, commander, zod.
+  // Everything that is not a Node builtin gets inlined: @holiday-cfo/core,
+  // @holiday-cfo/store-sqlite, commander, zod.
   noExternal: [/^@holiday\//, 'commander', 'zod'],
   /**
    * The `createRequire` line is not decoration.

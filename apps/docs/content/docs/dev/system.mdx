@@ -19,12 +19,12 @@ related: ['/docs/dev/data-model', '/docs/dev/adr']
 ## 의존 방향
 
 ```
-                  @holiday/core
+                  @holiday-cfo/core
               (도메인 + 포트 + 유스케이스)
                         ▲
         ┌───────────────┴───────────────┐
         │                               │
-  @holiday/store-sql              store-testkit
+  @holiday-cfo/store-sql              store-testkit
   (LedgerStore 구현 — 딱 하나)      (적합성 스위트)
         ▲                               ▲
    ┌────┴─────┐                         │
@@ -36,7 +36,7 @@ store-sqlite  store-postgres            │
    ▲          ▲                         │
    └────┬─────┴─────────────────────────┘
         │
-   @holiday/cli
+   @holiday-cfo/cli
    (composition root — 어떤 엔진을 쓰는지 아는 유일한 패키지)
 ```
 
@@ -47,7 +47,7 @@ store-sqlite  store-postgres            │
 가진 건 드라이버, 스키마, 마이그레이션뿐이다. 이유는 취향이 아니라 측정이다 — 스토어
 1,486줄 중 방언에 의존하는 건 8줄이었다. [ADR-006](/docs/dev/adr) 참조.
 
-**별도 `@holiday/ports` 패키지는 없다.** 헥사고날에서 포트 인터페이스는 도메인의
+**별도 `@holiday-cfo/ports` 패키지는 없다.** 헥사고날에서 포트 인터페이스는 도메인의
 소유다 — 바깥과 말하기 위한 도메인의 어휘. 따로 빼면 가짜 경계에 워크스페이스 엣지와
 버전 동기화 비용만 붙는다. `package.json` `exports` 서브패스로 같은 강제력을 얻는다.
 

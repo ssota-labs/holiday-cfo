@@ -1,5 +1,5 @@
-import type { CommodityCode, Grain } from '@holiday/core';
-import { type SqlEngine, SqlLedgerStore } from '@holiday/store-sql';
+import type { CommodityCode, Grain } from '@holiday-cfo/core';
+import { type SqlEngine, SqlLedgerStore } from '@holiday-cfo/store-sql';
 
 import type { PgClient } from './client.js';
 import { assertInt8ReadsAsBigInt, PgDriver } from './driver.js';
@@ -12,7 +12,7 @@ import { MIGRATIONS } from './migrations.generated.js';
  * no need for one, and no `init` pragmas because its equivalents are server
  * configuration rather than per-connection state. That this file is short is the
  * result the port boundary was supposed to buy: the ~1,500 lines of store are in
- * @holiday/store-sql and are the *same* lines SQLite runs.
+ * @holiday-cfo/store-sql and are the *same* lines SQLite runs.
  */
 export const PG_SCHEMA_VERSION = 2;
 

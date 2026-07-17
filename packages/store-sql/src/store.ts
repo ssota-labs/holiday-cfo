@@ -49,7 +49,7 @@ import {
   type VerifyProblem,
   type VerifyReport,
   assertEngineTier,
-} from '@holiday/core';
+} from '@holiday-cfo/core';
 
 import { CHAIN_HASH_VERSION, chainHash, GENESIS_HASH, stableJson, txnContentHash } from './chain.js';
 import type { SqlDriver, SqlValue } from './driver.js';

@@ -1,8 +1,8 @@
 {
-  "extends": "@holiday/typescript-config/react-library.json",
+  "extends": "@holiday-cfo/typescript-config/react-library.json",
   "compilerOptions": {
     "paths": {
-      "@holiday/ui/*": ["./src/*"]
+      "@holiday-cfo/ui/*": ["./src/*"]
     }
   },
   "include": ["."],
