@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check:skill": "node --experimental-strip-types scripts/check-skill-commands.ts",
-    "test": "pnpm run check:skill"
+    "test": "pnpm run check:skill",
+    "pretest": "pnpm --filter @holiday-cfo/cli build"
   }
 }

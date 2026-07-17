@@ -19,8 +19,28 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const PLUGIN = resolve(import.meta.dirname, '..');
-const BIN = join(PLUGIN, 'bin', 'holiday.mjs');
 const SKILL = join(PLUGIN, 'skills', 'holiday-cfo');
+
+/**
+ * The CLI under test is the freshly-built workspace copy, not a published npm
+ * release and not a committed bundle — there is no longer a bundle to point at.
+ *
+ * Neither host ships a binary now: both skills tell the agent to run
+ * `npx @holiday-cfo/cli@latest`. But CI cannot check the skill against a package
+ * that has not been published yet — it would be checking the previous release, or
+ * hitting the network — so the checker runs the local build. `pretest` builds it.
+ */
+const BIN = resolve(PLUGIN, '..', '..', 'packages', 'cli', 'dist', 'main.js');
+
+/**
+ * The Codex skill is a SECOND SKILL.md that must be checked too.
+ *
+ * It shares this plugin's references/ by symlink, so those are already walked
+ * once under SKILL — only its own SKILL.md is new. Both hosts drive the same CLI,
+ * so a command that drifts out from under one drifts out from under both, and a
+ * checker that only reads the Claude Code copy would bless a broken Codex skill.
+ */
+const CODEX_SKILL_MD = resolve(PLUGIN, '..', 'codex', 'skills', 'holiday-cfo', 'SKILL.md');
 
 /** `holiday <cmd>` mentions in the skill, in prose or in a fenced block. */
 const CMD_RE = /\bholiday ([a-z]+(?: [a-z]+)?)\b/g;
@@ -90,7 +110,7 @@ function commandTree(): { leaves: Set<string>; groups: Map<string, Set<string>> 
 }
 
 function main(): void {
-  const files = walk(SKILL);
+  const files = [...walk(SKILL), CODEX_SKILL_MD];
   const claimed = new Map<string, string>();
 
   for (const f of files) {
@@ -129,22 +149,32 @@ function main(): void {
     }
   }
 
-  // The other direction: the skill's "cannot do" list must not name something
-  // that shipped. This is the failure that makes an agent quietly worse.
-  const src = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
-  const cannot = src.slice(src.indexOf('## What this cannot do yet'));
-  for (const [name, cmd] of [
-    ['period close', 'close'],
-    ['FX rate table', 'fx'],
-    ['ingest command', 'ingest'],
-    ['review queue', 'review'],
-    ['balance assertion', 'assert'],
-  ] as const) {
-    if (new RegExp(name, 'i').test(cannot) && exists(cmd)) {
-      problems.push(
-        `SKILL.md still says "${name}" does not exist, but \`holiday ${cmd}\` does.\n` +
-          `      An agent reading that skips a real feature and improvises around it.`,
-      );
+  // The other direction: a skill's "cannot do" list must not name something that
+  // shipped. This is the failure that makes an agent quietly worse — it reads the
+  // stale disclaimer, skips a real feature, and improvises around it. Both hosts'
+  // SKILL.md get checked, because both went stale the moment `dash` shipped.
+  for (const md of [join(SKILL, 'SKILL.md'), CODEX_SKILL_MD]) {
+    const src = readFileSync(md, 'utf8');
+    const cannot = src.slice(src.indexOf('## What this cannot do yet'));
+    const where = md.slice(PLUGIN.length + 1);
+    for (const [name, cmd] of [
+      ['period close', 'close'],
+      ['FX rate table', 'fx'],
+      ['ingest command', 'ingest'],
+      ['review queue', 'review'],
+      ['balance assertion', 'assert'],
+      // "no dashboard" was true until `dash` shipped. `dash` is a command GROUP,
+      // and exists() reports a bare group as false — so probe a real leaf, or this
+      // guard silently never fires (which is itself the class of bug this file is
+      // about: a check that reassures without checking).
+      ['no dashboard', 'dash init'],
+    ] as const) {
+      if (new RegExp(name, 'i').test(cannot) && exists(cmd)) {
+        problems.push(
+          `${where}: still says "${name}" does not exist, but \`holiday ${cmd}\` does.\n` +
+            `      An agent reading that skips a real feature and improvises around it.`,
+        );
+      }
     }
   }
 

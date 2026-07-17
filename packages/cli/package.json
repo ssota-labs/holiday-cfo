@@ -17,9 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "bundle": "tsup",
-    "bundle:check": "tsup && git diff --exit-code -- ../../plugin/bin/holiday.mjs"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@holiday-cfo/core": "workspace:*",
