@@ -1,23 +1,26 @@
 /**
- * Silence the one warning node:sqlite prints on load. Import this FIRST.
+ * Drop the one warning node:sqlite prints on load. Import this before ./cli.js.
  *
- * The patch runs as a module side effect, not as an exported function you call.
- * That is deliberate and it is not stylistic: ESM hoists every import above the
- * module body, so a `silence()` call in main.ts would run *after* node:sqlite had
- * already loaded and already warned. Only a side effect in a module that is
- * imported earlier gets there in time.
+ * Why stderr matters: it carries this CLI's machine-readable error envelope, and
+ * the caller is an agent. It should not have to strip a Node banner out of the
+ * stream before parsing.
  *
- * Why bother: stderr carries this CLI's machine-readable error envelope. The
- * caller is an agent, and it should not have to strip a Node banner out of the
- * stream before parsing. Exactly one warning is dropped; everything else still
- * gets through.
+ * Why a LISTENER and not a `process.emitWarning` patch: node:sqlite emits during
+ * module linking, which happens before any module body runs — so by the time a
+ * patched emitWarning exists, the warning has already been queued. But
+ * emitWarning only *queues*; the actual `process.emit('warning', …)` lands on the
+ * next tick, which is after every module body. Swapping the listener therefore
+ * catches it, and does so no matter how the module graph is ordered — including
+ * after a bundler has inlined everything into one file.
+ *
+ * Exactly one warning is dropped. Everything else still prints.
  */
-const original = process.emitWarning.bind(process);
+process.removeAllListeners('warning');
 
-process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
-  const text = typeof warning === 'string' ? warning : warning?.message;
-  if (typeof text === 'string' && text.includes('SQLite is an experimental feature')) return;
-  return (original as (...a: unknown[]) => void)(warning, ...rest);
-}) as typeof process.emitWarning;
+process.on('warning', (warning: Error) => {
+  if (warning.name === 'ExperimentalWarning' && warning.message.includes('SQLite')) return;
+  // Node's default handler prints roughly this; keep the shape familiar.
+  process.stderr.write(`${warning.name}: ${warning.message}\n`);
+});
 
 export {};

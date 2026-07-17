@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "bundle": "tsup src/main.ts --format esm --bundle --platform node --target node24 --out-dir ../../plugin/bin --banner:js='#!/usr/bin/env node' && node -e \"require('fs').renameSync('../../plugin/bin/main.js','../../plugin/bin/holiday.mjs')\""
+    "bundle": "tsup",
+    "bundle:check": "tsup && git diff --exit-code -- ../../plugin/bin/holiday.mjs"
   },
   "dependencies": {
     "@holiday/core": "workspace:*",
