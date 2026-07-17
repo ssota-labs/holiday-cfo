@@ -8597,6 +8597,106 @@ function assertEngineTier(storeName, caps) {
     throw new TierContractError(storeName, missing);
 }
 
+// ../core/dist/usecases/dates.js
+function addMonthsIso(date, delta) {
+  const [y, m, d] = date.split("-").map(Number);
+  const zero = m - 1 + delta;
+  const ny = y + Math.floor(zero / 12);
+  const nm = (zero % 12 + 12) % 12 + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+
+// ../core/dist/usecases/cashflow.js
+var POSTING_WINDOW_MONTHS = -4;
+async function projectCashflow(r, opts) {
+  const { asOf, until } = opts;
+  const book = await r.getBook();
+  const accounts = await r.listAccounts();
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const cards = (await r.listCards()).map((c) => ({
+    accountId: c.accountId,
+    accountCode: byId.get(c.accountId).code,
+    fundingAccountId: c.fundingAccountId,
+    rule: c.rule,
+    label: c.label
+  }));
+  const cashIds = new Set(accounts.filter((a) => a.cash).map((a) => a.id));
+  const balances = await r.getBalances({ asOf });
+  const openingCashMinor = balances.filter((b) => cashIds.has(b.accountId)).reduce((s, b) => s + b.weightMinor, 0n);
+  const postings = [];
+  for await (const p of r.streamPostings({ from: addMonthsIso(asOf, POSTING_WINDOW_MONTHS) })) {
+    postings.push({
+      txnId: p.txnId,
+      txnDate: p.txnDate,
+      accountId: p.accountId,
+      weightMinor: p.weightMinor,
+      commodity: p.commodity
+    });
+  }
+  const installments = (await r.listInstallments({ activeOn: asOf })).map((i) => ({
+    id: i.plan.id,
+    cardAccountId: i.plan.cardAccountId,
+    liabilityAccountId: i.plan.liabilityAccountId,
+    label: i.plan.label,
+    months: i.plan.months,
+    rows: i.rows
+  }));
+  const recurring2 = await r.listRecurring({ activeOn: asOf });
+  const loans = (await r.listLoans()).map((l) => ({
+    accountId: l.loan.accountId,
+    fundingAccountId: l.loan.fundingAccountId,
+    label: l.loan.label,
+    termMonths: l.loan.termMonths,
+    rows: l.rows
+  }));
+  const fundingByCard = new Map(cards.map((c) => [c.accountId, c.fundingAccountId]));
+  const cardRules = new Map(cards.map((c) => [c.accountId, { rule: c.rule, fundingAccountId: c.fundingAccountId }]));
+  const runway = cashRunway(openingCashMinor, [
+    ...projectCardBills({ cards, postings, today: asOf, until }),
+    ...projectInstallments({ installments, fundingByCard, today: asOf, until }),
+    ...projectRecurring({ recurring: recurring2, cardRules, today: asOf, until }),
+    ...projectLoans({ loans, today: asOf, until })
+  ]);
+  const gaps = [
+    ...installments.filter((i) => !fundingByCard.has(i.cardAccountId)).map((i) => ({
+      kind: "installment-off-cycle",
+      subject: i.label ?? i.id,
+      detail: "is on a card with no billing cycle, so its rows are NOT in this projection"
+    })),
+    // An asset account nobody marked as cash is either deliberate or an oversight,
+    // and only the user knows which. Saying nothing makes the oversight invisible.
+    ...accounts.filter((a) => a.type === "asset" && !a.cash && !a.placeholder && !a.closedOn).map((a) => ({
+      kind: "asset-not-marked-cash",
+      subject: a.code,
+      detail: "is not marked --cash, so it is NOT counted as cash on hand"
+    }))
+  ];
+  return {
+    asOf,
+    until,
+    openingCashMinor,
+    commodity: book.functionalCurrency,
+    runway: runway.map((p) => ({
+      date: p.date,
+      outflowMinor: p.outflowMinor,
+      balanceAfterMinor: p.balanceAfterMinor,
+      items: p.items.map((b) => ({ kind: b.kind ?? "card", label: describeOutflow(b), amountMinor: b.amountMinor }))
+    })),
+    gaps
+  };
+}
+function describeOutflow(b) {
+  if (b.kind === "loan")
+    return `${b.label ?? "\uB300\uCD9C"} (${b.seq}/${b.termMonths})`;
+  if (b.kind === "installment")
+    return `${b.label ?? "\uD560\uBD80"} (${b.seq}/${b.months})`;
+  if (b.kind === "recurring") {
+    return b.viaCardAccountId ? `${b.label} (${b.occurredOn} \uACB0\uC81C\uBD84)` : b.label;
+  }
+  return `${b.cardLabel ?? b.cardCode}  ${b.cycleFrom}..${b.cycleTo}`;
+}
+
 // src/ingest.ts
 var INGEST_SUBMISSION = external_exports.object({
   /** sha256 of the image bytes, if the agent has the file. Blocks a re-submit of the same image. */
@@ -11073,88 +11173,30 @@ program2.command("cashflow").description("will the cash survive the card bills t
   const store = await openLedger(ws);
   const now = assertIsoDate(today());
   const until = assertIsoDate(o.until);
-  const result = await store.read(async (r) => {
-    const accounts = await r.listAccounts();
-    const byId = new Map(accounts.map((a) => [a.id, a]));
-    const cards = (await r.listCards()).map((c) => ({
-      accountId: c.accountId,
-      accountCode: byId.get(c.accountId).code,
-      fundingAccountId: c.fundingAccountId,
-      rule: c.rule,
-      label: c.label
-    }));
-    const cashIds = new Set(accounts.filter((a) => a.cash).map((a) => a.id));
-    const balances = await r.getBalances({ asOf: now });
-    const openingCash = balances.filter((b) => cashIds.has(b.accountId)).reduce((s, b) => s + b.weightMinor, 0n);
-    const unmarked = accounts.filter((a) => a.type === "asset" && !a.cash && !a.placeholder && !a.closedOn);
-    const postings = [];
-    for await (const p of r.streamPostings({ from: addMonthsIso(today(), -4) })) {
-      postings.push({
-        txnId: p.txnId,
-        txnDate: p.txnDate,
-        accountId: p.accountId,
-        weightMinor: p.weightMinor,
-        commodity: p.commodity
-      });
-    }
-    const installments = (await r.listInstallments({ activeOn: now })).map((i) => ({
-      id: i.plan.id,
-      cardAccountId: i.plan.cardAccountId,
-      liabilityAccountId: i.plan.liabilityAccountId,
-      label: i.plan.label,
-      months: i.plan.months,
-      rows: i.rows
-    }));
-    const recurring2 = await r.listRecurring({ activeOn: now });
-    const loans = (await r.listLoans()).map((l) => ({
-      accountId: l.loan.accountId,
-      fundingAccountId: l.loan.fundingAccountId,
-      label: l.loan.label,
-      termMonths: l.loan.termMonths,
-      rows: l.rows
-    }));
-    return { cards, openingCash, postings, installments, recurring: recurring2, unmarked, loans };
-  });
+  const proj = await store.read((r) => projectCashflow(r, { asOf: now, until }));
   await store.close();
-  const fundingByCard = new Map(result.cards.map((c) => [c.accountId, c.fundingAccountId]));
-  const cardRules = new Map(
-    result.cards.map((c) => [c.accountId, { rule: c.rule, fundingAccountId: c.fundingAccountId }])
-  );
-  const orphaned = result.installments.filter((i) => !fundingByCard.has(i.cardAccountId));
-  const bills = projectCardBills({ cards: result.cards, postings: result.postings, today: now, until });
-  const instRows = projectInstallments({ installments: result.installments, fundingByCard, today: now, until });
-  const recRows = projectRecurring({ recurring: result.recurring, cardRules, today: now, until });
-  const loanRows = projectLoans({ loans: result.loans, today: now, until });
-  const runway = cashRunway(result.openingCash, [
-    ...bills,
-    ...instRows,
-    ...recRows,
-    ...loanRows
-  ]);
+  const { runway } = proj;
   if (jsonMode()) {
     return out({
-      openingCashMinor: result.openingCash.toString(),
-      commodity: config.functionalCurrency,
+      asOf: proj.asOf,
+      until: proj.until,
+      openingCashMinor: proj.openingCashMinor.toString(),
+      commodity: proj.commodity,
       runway: runway.map((p) => ({
         date: p.date,
         outflowMinor: p.outflowMinor.toString(),
         balanceAfterMinor: p.balanceAfterMinor.toString(),
-        items: p.items.map((b) => ({
-          kind: b.kind ?? "card",
-          label: describeOutflow(b),
-          amountMinor: b.amountMinor.toString()
-        }))
-      }))
+        items: p.items.map((b) => ({ kind: b.kind, label: b.label, amountMinor: b.amountMinor.toString() }))
+      })),
+      // Shipped in the JSON, not just printed: a projection that quietly omits
+      // an outflow reads as reassurance when it should read as "I don't know",
+      // and that is just as true on a dashboard as in a terminal.
+      gaps: proj.gaps
     });
   }
-  const money = (m) => amounts.format({ minor: m, commodity: config.functionalCurrency });
-  for (const o2 of orphaned) {
-    note(`\u26A0 installment "${o2.label ?? o2.id}" is on a card with no billing cycle and is NOT in this projection.`);
-  }
-  for (const a of result.unmarked) {
-    note(`\u26A0 ${a.code} is not marked --cash and is NOT counted as cash on hand.`);
-  }
-  note(`cash on hand (${now}):  ${money(result.openingCash)} ${config.functionalCurrency}`);
+  const money = (m) => amounts.format({ minor: m, commodity: proj.commodity });
+  for (const g of proj.gaps) note(`\u26A0 ${g.subject} ${g.detail}.`);
+  note(`cash on hand (${now}):  ${money(proj.openingCashMinor)} ${proj.commodity}`);
   if (runway.length === 0) {
     note(`no card bills projected through ${until}.`);
     return;
@@ -11164,15 +11206,15 @@ program2.command("cashflow").description("will the cash survive the card bills t
     const short = p.balanceAfterMinor < 0n;
     note(`${p.date}   -${money(p.outflowMinor).padStart(12)}   \u2192  ${money(p.balanceAfterMinor).padStart(12)}${short ? "   \u26A0 SHORT" : ""}`);
     for (const b of p.items) {
-      note(`             ${describeOutflow(b).padEnd(30)} ${money(b.amountMinor).padStart(12)}`);
+      note(`             ${b.label.padEnd(30)} ${money(b.amountMinor).padStart(12)}`);
     }
   }
   const worst = runway.reduce((a, b) => b.balanceAfterMinor < a.balanceAfterMinor ? b : a);
   note("");
   if (worst.balanceAfterMinor < 0n) {
-    note(`\u26A0 Short by ${money(-worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+    note(`\u26A0 Short by ${money(-worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
   } else {
-    note(`Lowest point: ${money(worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+    note(`Lowest point: ${money(worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
   }
 });
 function pickMoneyLeg(postings, byId, item) {
@@ -11221,22 +11263,6 @@ async function makeDeriveWeight(store, functional, date) {
 }
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
-}
-function describeOutflow(b) {
-  if (b.kind === "loan") return `${b.label ?? "\uB300\uCD9C"} (${b.seq}/${b.termMonths})`;
-  if (b.kind === "installment") return `${b.label ?? "\uD560\uBD80"} (${b.seq}/${b.months})`;
-  if (b.kind === "recurring") {
-    return b.viaCardAccountId ? `${b.label} (${b.occurredOn} \uACB0\uC81C\uBD84)` : b.label;
-  }
-  return `${b.cardLabel ?? b.cardCode}  ${b.cycleFrom}..${b.cycleTo}`;
-}
-function addMonthsIso(date, delta) {
-  const [y, m, d] = date.split("-").map(Number);
-  const zero = m - 1 + delta;
-  const ny = y + Math.floor(zero / 12);
-  const nm = (zero % 12 + 12) % 12 + 1;
-  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
-  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
 program2.command("verify").description("scan the whole ledger and the audit chain").option("--head", "print the audit chain head \u2014 anchor this outside the file", false).action(async (o) => {
   const ws = requireWorkspace();

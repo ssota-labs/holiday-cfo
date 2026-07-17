@@ -11,12 +11,10 @@ import {
   type CommodityCode,
   type Grain,
   type IsoDate,
-  type ProjectedOutflow,
-  type ProjectionPosting,
   Txn,
   buildInstallmentSchedule,
-  projectInstallments,
-  projectRecurring,
+  projectCashflow,
+  addMonthsIso,
   assertCadence,
   describeCadence,
   type TxnId,
@@ -27,11 +25,9 @@ import {
   assertCardCycleRule,
   assertIsoDate,
   billingDatesFor,
-  cashRunway,
   createUlidFactory,
   describeTxnError,
   displaySignOf,
-  projectCardBills,
   reviseSchedule,
   type AmortizationMethod,
   type LoanScheduleRow,
@@ -42,7 +38,6 @@ import {
   monthlyFromAnnual,
   parseAnnualPercent,
   rowForDate,
-  projectLoans,
   type ExistingTxn,
   type ParsedTxn,
   type AssertionCheck,
@@ -1538,106 +1533,36 @@ program
     const now = assertIsoDate(today());
     const until = assertIsoDate(o.until);
 
-    const result = await store.read(async (r) => {
-      const accounts = await r.listAccounts();
-      const byId = new Map(accounts.map((a) => [a.id, a]));
-      const cards = (await r.listCards()).map((c) => ({
-        accountId: c.accountId,
-        accountCode: byId.get(c.accountId)!.code,
-        fundingAccountId: c.fundingAccountId,
-        rule: c.rule,
-        label: c.label,
-      }));
-
-      // The historical half of a cash flow statement is a QUERY, never a
-      // maintained table — that is what stops it drifting from the ledger.
-      const cashIds = new Set(accounts.filter((a) => a.cash).map((a) => a.id));
-      const balances = await r.getBalances({ asOf: now });
-      const openingCash = balances
-        .filter((b) => cashIds.has(b.accountId))
-        .reduce((s, b) => s + b.weightMinor, 0n);
-      // An asset account nobody marked as cash is either deliberate or an
-      // oversight, and only the user knows which. Saying nothing makes the
-      // oversight invisible.
-      const unmarked = accounts.filter((a) => a.type === 'asset' && !a.cash && !a.placeholder && !a.closedOn);
-
-      const postings: ProjectionPosting[] = [];
-      for await (const p of r.streamPostings({ from: addMonthsIso(today(), -4) as IsoDate })) {
-        postings.push({
-          txnId: p.txnId,
-          txnDate: p.txnDate,
-          accountId: p.accountId,
-          weightMinor: p.weightMinor,
-          commodity: p.commodity,
-        });
-      }
-
-      // Installments are NOT derived from postings: their postings all sit on the
-      // purchase date, and only the schedule knows a twelfth moves each month.
-      const installments = (await r.listInstallments({ activeOn: now })).map((i) => ({
-        id: i.plan.id,
-        cardAccountId: i.plan.cardAccountId,
-        liabilityAccountId: i.plan.liabilityAccountId,
-        label: i.plan.label,
-        months: i.plan.months,
-        rows: i.rows,
-      }));
-      const recurring = await r.listRecurring({ activeOn: now });
-      const loans = (await r.listLoans()).map((l) => ({
-        accountId: l.loan.accountId,
-        fundingAccountId: l.loan.fundingAccountId,
-        label: l.loan.label,
-        termMonths: l.loan.termMonths,
-        rows: l.rows,
-      }));
-      return { cards, openingCash, postings, installments, recurring, unmarked, loans };
-    });
+    const proj = await store.read((r) => projectCashflow(r, { asOf: now, until }));
     await store.close();
 
-    const fundingByCard = new Map(result.cards.map((c) => [c.accountId, c.fundingAccountId]));
-    const cardRules = new Map(
-      result.cards.map((c) => [c.accountId, { rule: c.rule, fundingAccountId: c.fundingAccountId }]),
-    );
-    const orphaned = result.installments.filter((i) => !fundingByCard.has(i.cardAccountId));
-
-    const bills = projectCardBills({ cards: result.cards, postings: result.postings, today: now, until });
-    const instRows = projectInstallments({ installments: result.installments, fundingByCard, today: now, until });
-    const recRows = projectRecurring({ recurring: result.recurring, cardRules, today: now, until });
-    const loanRows = projectLoans({ loans: result.loans, today: now, until });
-    const runway = cashRunway<ProjectedOutflow>(result.openingCash, [
-      ...bills,
-      ...instRows,
-      ...recRows,
-      ...loanRows,
-    ]);
+    const { runway } = proj;
 
     if (jsonMode()) {
+      // i64 amounts serialise as decimal STRINGS: JSON has no i64, and
+      // Number("9007199254740993") silently gives ...992. Whatever reads this —
+      // the dashboard bake included — must not parse them back into numbers.
       return out({
-        openingCashMinor: result.openingCash.toString(),
-        commodity: config.functionalCurrency,
+        asOf: proj.asOf,
+        until: proj.until,
+        openingCashMinor: proj.openingCashMinor.toString(),
+        commodity: proj.commodity,
         runway: runway.map((p) => ({
           date: p.date,
           outflowMinor: p.outflowMinor.toString(),
           balanceAfterMinor: p.balanceAfterMinor.toString(),
-          items: p.items.map((b) => ({
-            kind: b.kind ?? 'card',
-            label: describeOutflow(b),
-            amountMinor: b.amountMinor.toString(),
-          })),
+          items: p.items.map((b) => ({ kind: b.kind, label: b.label, amountMinor: b.amountMinor.toString() })),
         })),
+        // Shipped in the JSON, not just printed: a projection that quietly omits
+        // an outflow reads as reassurance when it should read as "I don't know",
+        // and that is just as true on a dashboard as in a terminal.
+        gaps: proj.gaps,
       });
     }
 
-    const money = (m: bigint) => amounts.format({ minor: m, commodity: config.functionalCurrency });
-    // Never let coverage shrink silently: a projection that quietly omits an
-    // outflow reads as reassurance when it should read as "I don't know".
-    for (const o of orphaned) {
-      note(`⚠ installment "${o.label ?? o.id}" is on a card with no billing cycle and is NOT in this projection.`);
-    }
-    for (const a of result.unmarked) {
-      note(`⚠ ${a.code} is not marked --cash and is NOT counted as cash on hand.`);
-    }
-    note(`cash on hand (${now}):  ${money(result.openingCash)} ${config.functionalCurrency}`);
+    const money = (m: bigint) => amounts.format({ minor: m, commodity: proj.commodity });
+    for (const g of proj.gaps) note(`⚠ ${g.subject} ${g.detail}.`);
+    note(`cash on hand (${now}):  ${money(proj.openingCashMinor)} ${proj.commodity}`);
     if (runway.length === 0) {
       note(`no card bills projected through ${until}.`);
       return;
@@ -1647,15 +1572,15 @@ program
       const short = p.balanceAfterMinor < 0n;
       note(`${p.date}   -${money(p.outflowMinor).padStart(12)}   →  ${money(p.balanceAfterMinor).padStart(12)}${short ? '   ⚠ SHORT' : ''}`);
       for (const b of p.items) {
-        note(`             ${describeOutflow(b).padEnd(30)} ${money(b.amountMinor).padStart(12)}`);
+        note(`             ${b.label.padEnd(30)} ${money(b.amountMinor).padStart(12)}`);
       }
     }
     const worst = runway.reduce((a, b) => (b.balanceAfterMinor < a.balanceAfterMinor ? b : a));
     note('');
     if (worst.balanceAfterMinor < 0n) {
-      note(`⚠ Short by ${money(-worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+      note(`⚠ Short by ${money(-worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
     } else {
-      note(`Lowest point: ${money(worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+      note(`Lowest point: ${money(worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
     }
   });
 
@@ -1733,25 +1658,6 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function describeOutflow(b: ProjectedOutflow): string {
-  if (b.kind === 'loan') return `${b.label ?? '대출'} (${b.seq}/${b.termMonths})`;
-  if (b.kind === 'installment') return `${b.label ?? '할부'} (${b.seq}/${b.months})`;
-  if (b.kind === 'recurring') {
-    // Show the charge date when a card sits in between, since "why is this here"
-    // is otherwise unanswerable: the money is leaving weeks after the charge.
-    return b.viaCardAccountId ? `${b.label} (${b.occurredOn} 결제분)` : b.label;
-  }
-  return `${b.cardLabel ?? b.cardCode}  ${b.cycleFrom}..${b.cycleTo}`;
-}
-
-function addMonthsIso(date: string, delta: number): string {
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  const zero = m - 1 + delta;
-  const ny = y + Math.floor(zero / 12);
-  const nm = (((zero % 12) + 12) % 12) + 1;
-  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
-  return `${String(ny).padStart(4, '0')}-${String(nm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
-}
 
 program
   .command('verify')
