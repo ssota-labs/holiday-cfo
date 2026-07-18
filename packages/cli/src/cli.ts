@@ -22,6 +22,8 @@ import {
   type CommodityCode,
   type Grain,
   type IsoDate,
+  type LedgerUow,
+  type Rule,
   Txn,
   buildInstallmentSchedule,
   projectCashflow,
@@ -1099,14 +1101,79 @@ ingest
       });
 
       const out: {
+        category: string | null;
         itemId: string;
         txnId: string;
         status: string;
         warnings: string[];
       }[] = [];
 
+      // Rules load once per submission. Matching order comes from the store —
+      // priority DESC then newest — so the same payee classifies the same way
+      // every time.
+      const rules = await uow.listRules();
+      const ensureParking = async (code: string): Promise<void> => {
+        if (byCode.has(code)) return;
+        // Structural accounts, like Equity:Opening: created on first need.
+        // Multi-commodity on purpose — a parking lot takes anything.
+        const c = assertAccountCode(code);
+        const acct: Account = {
+          id: nextUlid() as AccountId,
+          code: c,
+          type: accountTypeOf(c),
+          parentId: null,
+          commodity: null,
+          monetary: true,
+          cash: false,
+          placeholder: false,
+          openedOn: assertIsoDate(today()),
+          closedOn: null,
+        };
+        await uow.upsertAccount(acct);
+        byCode.set(code, acct);
+        byId.set(acct.id, acct);
+      };
+
       for (const item of submission.items) {
-        const postings = item.legs.map((l) =>
+        const ruleWarnings: string[] = [];
+        // `legs` items are fully decided by the parser. `money` items are decided
+        // by a rule — or not decided at all, in which case they park in
+        // Uncategorized and stay DRAFT even under --post: --post means "post what
+        // is decided", and an unclassified row is precisely an undecided one.
+        let decided = true;
+        let category: string | null = null;
+        const effLegs: { account: string; amount: string; commodity: string; weight?: string | undefined }[] = item.legs
+          ? [...item.legs]
+          : [];
+        if (effLegs.length === 0) {
+          const m = item.money!;
+          if (m.commodity !== (config.functionalCurrency as string)) {
+            throw new UsageError(
+              `money items are functional-currency only — a ${m.commodity} row needs a weight, so submit it as \`legs\` with @@.`,
+            );
+          }
+          const rule = matchRule(rules, item.payee ?? null);
+          let categoryCode: string;
+          if (rule && byCode.has(rule.category)) {
+            categoryCode = rule.category;
+          } else {
+            if (rule) {
+              ruleWarnings.push(
+                `rule ${rule.id} points at missing account ${rule.category} — treated as unmatched`,
+              );
+            }
+            categoryCode = m.amount.startsWith('-') ? 'Expenses:Uncategorized' : 'Income:Uncategorized';
+            await ensureParking(categoryCode);
+            decided = false;
+          }
+          category = categoryCode;
+          const counter = m.amount.startsWith('-') ? m.amount.slice(1) : `-${m.amount}`;
+          effLegs.push(
+            { account: m.account, amount: m.amount, commodity: m.commodity },
+            { account: categoryCode, amount: counter, commodity: m.commodity },
+          );
+        }
+        const postings = effLegs.map((l) =>
           parseLeg(
             `${l.account} ${l.amount} ${l.commodity}${l.weight ? ` @@ ${l.weight}` : ''}`,
             amounts,
@@ -1162,8 +1229,9 @@ ingest
 
         // --post commits straight to posted; the ingest item is 'accepted' up
         // front, mirroring exactly what `review accept` would do one row at a time.
-        const txnStatus = o.post ? 'posted' : 'draft';
-        const itemStatus = o.post ? 'accepted' : 'pending';
+        // Undecided (unclassified) items stay drafts regardless.
+        const txnStatus = o.post && decided ? 'posted' : 'draft';
+        const itemStatus = o.post && decided ? 'accepted' : 'pending';
         await uow.appendTxn(txn.value, { status: txnStatus });
         const itemId = nextUlid();
         await uow.recordIngestItem({
@@ -1180,7 +1248,7 @@ ingest
           parsedJson: JSON.stringify(item),
           createdAt: nowIso(),
         });
-        out.push({ itemId, txnId: txn.value.id, status: itemStatus, warnings });
+        out.push({ itemId, txnId: txn.value.id, status: itemStatus, category, warnings: [...ruleWarnings, ...warnings] });
       }
       return { batchId, items: out };
     });
@@ -1345,7 +1413,12 @@ review
   .command('accept <id>')
   .description('promote a draft to posted. Cannot fail — it is already balanced.')
   .option('--idem-key <key>')
-  .action(async (id: string, _o: { idemKey?: string }) => {
+  // Accepting "as" a category completes the proposal: the Uncategorized leg was
+  // never information, only a placeholder. Under the hood it is a supersede —
+  // reject the old draft, append the completed one posted — so the journal stays
+  // append-only and the audit chain never sees a mutation.
+  .option('--category <code>', 'accept as this category (swaps the Uncategorized leg)')
+  .action(async (id: string, o: { idemKey?: string; category?: string }) => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
     const result = await store.unitOfWork(async (uow) => {
@@ -1354,12 +1427,20 @@ review
       if (!item) throw new UsageError(`no such review item: ${id}`);
       if (item.status !== 'pending') throw new UsageError(`item ${id} is already ${item.status}`);
       if (!item.txnId) throw new UsageError(`item ${id} has no transaction`);
+      if (o.category) {
+        const accounts = await uow.listAccounts();
+        const target = accounts.find((a) => (a.code as string) === o.category);
+        if (!target) throw new UsageError(`no such account: ${o.category}`);
+        if (target.placeholder) throw new UsageError(`${o.category} is a placeholder and cannot be posted to.`);
+        const newId = await supersedeDraftAs(uow, item.id, item.txnId, target, accounts);
+        return { id, txnId: newId };
+      }
       await uow.promoteDraft(item.txnId);
       await uow.setIngestItemStatus(id, 'accepted', {});
       return { id, txnId: item.txnId };
     });
     await store.close();
-    out({ ...result, status: 'accepted' });
+    out({ ...result, status: 'accepted', ...(o.category ? { category: o.category } : {}) });
     note(`승인됨. 이제 잔액과 현금흐름에 들어갑니다.`);
   });
 
@@ -1382,6 +1463,57 @@ review
     out({ id, status: 'rejected', reason: o.reason });
     // Deleting it would let the same screenshot be re-proposed forever.
     note(`거부됨. 기록은 남습니다 — 같은 캡쳐가 다시 제안되는 걸 막는 기억입니다.`);
+  });
+
+review
+  .command('apply-rules')
+  .description('run the rule table over pending drafts. Reports by default; --accept posts the matches.')
+  .option('--accept', 'accept each matched draft as its rule category', false)
+  .action(async (o: { accept: boolean }) => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+
+    // One unit of work for the whole sweep: either every matched draft posts, or
+    // none do. A rule pass that half-applies leaves the queue in a state nobody
+    // can reason about.
+    const result = await store.unitOfWork(async (uow) => {
+      const rules = await uow.listRules();
+      const accounts = await uow.listAccounts();
+      const byCode2 = new Map(accounts.map((a) => [a.code as string, a]));
+      const pending = (await uow.listIngestItems({ status: 'pending' })).filter((i) => i.txnId);
+
+      const matched: { itemId: string; payee: string | null; category: string; txnId?: string }[] = [];
+      const unmatched: number[] = [];
+      const warnings: string[] = [];
+      for (const item of pending) {
+        const rule = matchRule(rules, item.merchant);
+        if (!rule) {
+          unmatched.push(1);
+          continue;
+        }
+        const target = byCode2.get(rule.category);
+        if (!target || target.placeholder) {
+          warnings.push(`rule ${rule.id} → ${rule.category}: account missing or placeholder — skipped`);
+          continue;
+        }
+        if (o.accept) {
+          const newId = await supersedeDraftAs(uow, item.id, item.txnId!, target, accounts);
+          matched.push({ itemId: item.id, payee: item.merchant, category: rule.category, txnId: newId });
+        } else {
+          matched.push({ itemId: item.id, payee: item.merchant, category: rule.category });
+        }
+      }
+      return { matched, unmatchedCount: unmatched.length, warnings, accepted: o.accept };
+    });
+    await store.close();
+
+    out(result);
+    if (result.accepted) {
+      note(`${result.matched.length}건 확정, ${result.unmatchedCount}건은 규칙 없음 — 남은 건 dash 나 rule add 로.`);
+    } else {
+      note(`${result.matched.length}건이 규칙과 일치 (미적용 — --accept 로 확정), ${result.unmatchedCount}건은 규칙 없음.`);
+    }
+    for (const w of result.warnings) note(`  ⚠ ${w}`);
   });
 
 const loan = program.command('loan').description('대출 — 상환 스케줄과 대사');
@@ -1766,6 +1898,109 @@ program
  * The card or the bank — not the category. Two people can categorise the same
  * purchase differently; the money side is what the issuer actually recorded.
  */
+/**
+ * Accept a draft AS a category: reject the old draft, append the completed
+ * transaction posted, repoint the ingest item.
+ *
+ * A supersede rather than an in-place edit, deliberately. The audit chain
+ * commits to a transaction's CONTENT at append; mutating a draft's leg would
+ * either break verify or demand chain surgery, and the chain is the one thing
+ * this system never bends. Rejected drafts are already kept as dedup memory, so
+ * the leftover row costs nothing new.
+ *
+ * Only the Uncategorized leg is swappable — it is a placeholder, not
+ * information. Amounts, dates, and the money leg stay immutable even in drafts:
+ * a misread amount is a re-submission, because amount edits are where mistakes
+ * and fraud hide.
+ */
+async function supersedeDraftAs(
+  uow: LedgerUow,
+  itemId: string,
+  oldTxnId: TxnId,
+  target: Account,
+  accounts: readonly Account[],
+): Promise<TxnId> {
+  const old = await uow.getTxn(oldTxnId);
+  if (!old) throw new UsageError(`draft ${oldTxnId} not found`);
+  if (old.status !== 'draft') throw new UsageError(`transaction ${oldTxnId} is ${old.status}, not a draft`);
+
+  const uncatIds = new Set(
+    accounts
+      .filter((a) => (a.code as string) === 'Expenses:Uncategorized' || (a.code as string) === 'Income:Uncategorized')
+      .map((a) => a.id),
+  );
+  const swappable = old.txn.postings.filter((p) => uncatIds.has(p.accountId));
+  if (swappable.length === 0) {
+    throw new UsageError(
+      `draft ${oldTxnId} has no Uncategorized leg to swap — accept it without --category, or reject and resubmit.`,
+    );
+  }
+  if (target.commodity) {
+    for (const pLeg of swappable) {
+      if (pLeg.units.commodity !== target.commodity) {
+        throw new UsageError(
+          `${target.code} is ${target.commodity}-only but the leg is ${pLeg.units.commodity}.`,
+        );
+      }
+    }
+  }
+
+  const created = Txn.create({
+    id: nextUlid() as TxnId,
+    date: old.txn.date,
+    bookingCommodity: old.txn.bookingCommodity,
+    payee: old.txn.payee,
+    narration: old.txn.narration,
+    systemKind: old.txn.systemKind,
+    correctsTxnId: null,
+    sourceItemId: itemId,
+    tags: [...old.txn.tags],
+    meta: { ...old.txn.meta, supersedes: oldTxnId },
+    postings: old.txn.postings.map((pLeg) => ({
+      seq: pLeg.seq,
+      accountId: uncatIds.has(pLeg.accountId) ? target.id : pLeg.accountId,
+      units: pLeg.units,
+      weightMinor: pLeg.weightMinor,
+      weightSource: pLeg.weightSource,
+      fxRateText: pLeg.fxRateText,
+      fxRateId: pLeg.fxRateId,
+      lotId: pLeg.lotId,
+      kind: pLeg.kind,
+      memo: pLeg.memo,
+    })),
+  });
+  // Same amounts, same weights — only an account id changed. If this fails the
+  // original draft was never balanced, which appendTxn would have refused.
+  if (!created.ok) throw new LedgerError('internal', created.error.map(describeTxnError).join('\n'));
+
+  await uow.appendTxn(created.value, { status: 'posted' });
+  await uow.rejectDraft(oldTxnId, `recategorized → ${target.code as string}`);
+  await uow.setIngestItemStatus(itemId, 'accepted', { txnId: created.value.id });
+  return created.value.id;
+}
+
+/**
+ * First rule that matches the payee, in the store's order (priority DESC, then
+ * newest). Contains-match is case-insensitive; a broken regex simply never
+ * matches — a rule must fail toward "unclassified", never toward a wrong class.
+ */
+function matchRule(rules: readonly Rule[], payee: string | null): Rule | null {
+  if (!payee) return null;
+  const hay = payee.toLowerCase();
+  for (const r of rules) {
+    if (r.match === 'regex') {
+      try {
+        if (new RegExp(r.pattern).test(payee)) return r;
+      } catch {
+        // validated at `rule add`; a legacy bad pattern must not crash an import
+      }
+    } else if (hay.includes(r.pattern.toLowerCase())) {
+      return r;
+    }
+  }
+  return null;
+}
+
 function pickMoneyLeg(
   postings: readonly { accountId: AccountId; units: { minor: bigint; commodity: CommodityCode } }[],
   byId: ReadonlyMap<AccountId, Account>,
