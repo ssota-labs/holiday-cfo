@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type * as PageTree from 'fumadocs-core/page-tree';
 import Link from 'fumadocs-core/link';
 import { usePathname } from 'fumadocs-core/framework';
@@ -11,14 +11,18 @@ import { ArrowUpRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 /**
- * Native sidebar folder accordion.
+ * Native sidebar folder accordion with localStorage persistence.
  *
- * `<details>/<summary>` owns the toggle, so browser-preview event interception
- * cannot break React state updates. The title toggles; the arrow is the link.
+ * `<details>/<summary>` owns the toggle. Open/closed state is stored so
+ * folders stay as the user left them across navigations and reloads.
  */
+
+const STORAGE_KEY = 'holiday-docs.sidebar-folders';
 
 const itemClass =
   'relative flex flex-row items-center gap-1 rounded-lg p-2 text-start text-fd-muted-foreground wrap-anywhere [&_svg]:size-4 [&_svg]:shrink-0 transition-colors hover:bg-fd-accent/50 hover:text-fd-accent-foreground/80 hover:transition-none data-[active=true]:bg-fd-primary/10 data-[active=true]:text-fd-primary data-[active=true]:hover:transition-colors w-full';
+
+type FolderOpenMap = Record<string, boolean>;
 
 function getItemOffset(depth: number) {
   return `calc(${2 + 3 * depth} * var(--spacing))`;
@@ -30,6 +34,39 @@ function normalize(url: string) {
 
 function isActivePath(href: string, pathname: string) {
   return normalize(href) === normalize(pathname);
+}
+
+function folderLabel(name: ReactNode): string {
+  if (typeof name === 'string' || typeof name === 'number') return String(name);
+  return '섹션';
+}
+
+function folderStorageKey(item: PageTree.Folder): string {
+  if (item.$id) return item.$id;
+  if (item.index?.url) return item.index.url;
+  return `name:${folderLabel(item.name)}`;
+}
+
+function readOpenMap(): FolderOpenMap {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as FolderOpenMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeOpenState(key: string, open: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    const next = { ...readOpenMap(), [key]: open };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore quota / private-mode failures.
+  }
 }
 
 function FolderContent({ children }: { children: ReactNode }) {
@@ -48,115 +85,90 @@ function FolderContent({ children }: { children: ReactNode }) {
   );
 }
 
-function NativeFolder({
+function PersistentDetails({
   item,
+  inPath,
+  indexActive,
   href,
-  active,
   external,
   label,
-  folderChildren,
+  header,
   children,
 }: {
   item: PageTree.Folder;
-  href: string;
-  active: boolean;
+  inPath: boolean;
+  indexActive?: boolean;
+  href?: string;
   external?: boolean;
   label: string;
-  folderChildren: ReactNode;
+  header: ReactNode;
   children: ReactNode;
 }) {
   const depth = useFolderDepth();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const wasActive = useRef(active);
-  const initiallyOpen = useRef(active || Boolean(item.defaultOpen));
+  const key = folderStorageKey(item);
+  const wasInPath = useRef(inPath);
+  // SSR and first client paint share the same default to avoid hydration mismatch.
+  const [open, setOpen] = useState(() => inPath || Boolean(item.defaultOpen));
 
+  // Restore persisted user preference after mount.
   useEffect(() => {
-    if (detailsRef.current) detailsRef.current.open = initiallyOpen.current;
-  }, []);
+    const stored = readOpenMap()[key];
+    if (typeof stored === 'boolean') setOpen(stored);
+  }, [key]);
 
+  // Entering a folder via navigation opens it and persists that.
   useEffect(() => {
-    if (active && !wasActive.current && detailsRef.current) {
-      detailsRef.current.open = true;
+    if (inPath && !wasInPath.current) {
+      setOpen(true);
+      writeOpenState(key, true);
     }
-    wasActive.current = active;
-  }, [active]);
+    wasInPath.current = inPath;
+  }, [inPath, key]);
 
   return (
-    <details ref={detailsRef} className="group/sidebar-folder">
+    <details
+      className="group/sidebar-folder"
+      open={open}
+      onToggle={(event) => {
+        const next = event.currentTarget.open;
+        if (next === open) return;
+        setOpen(next);
+        writeOpenState(key, next);
+      }}
+    >
       <summary
         className={cn(
           itemClass,
           'cursor-pointer list-none [&::-webkit-details-marker]:hidden',
-          active && 'bg-fd-primary/10 text-fd-primary',
+          (inPath || indexActive) && 'bg-fd-primary/10 text-fd-primary',
         )}
         style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-        data-active={active}
+        data-active={Boolean(inPath || indexActive)}
         title={`${label} 접기/펼치기`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          {children}
+          {header}
           <ChevronDown
             className="text-fd-muted-foreground ms-auto size-4 shrink-0 -rotate-90 transition-transform group-open/sidebar-folder:rotate-0 rtl:rotate-90 rtl:group-open/sidebar-folder:rotate-0"
             aria-hidden
           />
         </span>
-        <Link
-          href={href}
-          external={external}
-          title={`${label} 페이지로 이동`}
-          aria-label={`${label} 페이지로 이동`}
-          className="text-fd-muted-foreground hover:bg-fd-accent/80 hover:text-fd-accent-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <ArrowUpRight className="size-3.5" aria-hidden />
-        </Link>
-      </summary>
-      <FolderContent>{folderChildren}</FolderContent>
-    </details>
-  );
-}
-
-function NativeFolderWithoutIndex({
-  item,
-  active,
-  label,
-  children,
-}: {
-  item: PageTree.Folder;
-  active: boolean;
-  label: string;
-  children: ReactNode;
-}) {
-  const depth = useFolderDepth();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const initiallyOpen = useRef(active || Boolean(item.defaultOpen));
-
-  useEffect(() => {
-    if (detailsRef.current) detailsRef.current.open = initiallyOpen.current;
-  }, []);
-
-  return (
-    <details ref={detailsRef} className="group/sidebar-folder">
-      <summary
-        className={cn(itemClass, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}
-        style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-        title={`${label} 접기/펼치기`}
-      >
-        {item.icon}
-        {item.name}
-        <ChevronDown
-          className="ms-auto size-4 -rotate-90 transition-transform group-open/sidebar-folder:rotate-0 rtl:rotate-90 rtl:group-open/sidebar-folder:rotate-0"
-          aria-hidden
-        />
+        {href ? (
+          <Link
+            href={href}
+            external={external}
+            title={`${label} 페이지로 이동`}
+            aria-label={`${label} 페이지로 이동`}
+            className="text-fd-muted-foreground hover:bg-fd-accent/80 hover:text-fd-accent-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ArrowUpRight className="size-3.5" aria-hidden />
+          </Link>
+        ) : null}
       </summary>
       <FolderContent>{children}</FolderContent>
     </details>
   );
-}
-
-function folderLabel(name: ReactNode): string {
-  if (typeof name === 'string' || typeof name === 'number') return String(name);
-  return '섹션';
 }
 
 export function DocsSidebarFolder({
@@ -168,31 +180,28 @@ export function DocsSidebarFolder({
 }) {
   const path = useTreePath();
   const pathname = usePathname();
-  const active = path.includes(item);
+  const inPath = path.includes(item);
   const label = folderLabel(item.name);
+  const indexActive = item.index ? isActivePath(item.index.url, pathname) : false;
 
   return (
-    <SidebarFolder
-      collapsible={false}
-      active={false}
-    >
-      {item.index ? (
-        <NativeFolder
-          item={item}
-          href={item.index.url}
-          active={isActivePath(item.index.url, pathname)}
-          external={item.index.external}
-          label={label}
-          folderChildren={children}
-        >
-          {item.icon}
-          {item.name}
-        </NativeFolder>
-      ) : (
-        <NativeFolderWithoutIndex item={item} active={active} label={label}>
-          {children}
-        </NativeFolderWithoutIndex>
-      )}
+    <SidebarFolder collapsible={false} active={false}>
+      <PersistentDetails
+        item={item}
+        inPath={inPath}
+        indexActive={indexActive}
+        href={item.index?.url}
+        external={item.index?.external}
+        label={label}
+        header={
+          <>
+            {item.icon}
+            {item.name}
+          </>
+        }
+      >
+        {children}
+      </PersistentDetails>
     </SidebarFolder>
   );
 }
