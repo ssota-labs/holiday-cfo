@@ -74,6 +74,7 @@ function section(source: string, heading: string): string | null {
 
 function main(): void {
   const problems: string[] = [];
+  const examples: Array<{ readonly name: string; readonly text: string }> = [];
 
   for (const surface of surfaces) {
     const source = readFileSync(surface.file, 'utf8');
@@ -96,6 +97,39 @@ function main(): void {
     }
     if (!voice.includes('Ezy')) {
       problems.push(`${surface.name}: missing the plain-language Ezy example`);
+    }
+
+    const example =
+      /<!-- voice-example:ezy:start -->([\s\S]*?)<!-- voice-example:ezy:end -->/.exec(
+        voice,
+      )?.[1]?.trim();
+    if (!example) {
+      problems.push(`${surface.name}: missing the marked Ezy example`);
+    } else {
+      examples.push({ name: surface.name, text: example });
+      for (const pattern of [
+        /\b(?:npx|JSON|posting|stderr|parser)\b/i,
+        /Liabilities:/,
+        /(?:^|\n)\s*\|/,
+        /(?:^|\n)#{1,6}\s/,
+      ]) {
+        if (pattern.test(example)) {
+          problems.push(
+            `${surface.name}: Ezy example exposes internal/report formatting (${pattern})`,
+          );
+        }
+      }
+    }
+  }
+
+  const canonicalExample = examples[0];
+  if (canonicalExample) {
+    for (const example of examples.slice(1)) {
+      if (example.text !== canonicalExample.text) {
+        problems.push(
+          `${example.name}: Ezy example differs from ${canonicalExample.name}`,
+        );
+      }
     }
   }
 
