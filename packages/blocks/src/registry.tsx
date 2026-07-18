@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@holiday-cfo/ui/components/
 import { Badge } from '@holiday-cfo/ui/components/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@holiday-cfo/ui/components/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@holiday-cfo/ui/components/table';
+import { CategorizeQueue } from './categorize.js';
 import { catalog } from './catalog.js';
 import { useDatasets } from './data.js';
 import { formatAmount, signOf } from './money.js';
@@ -176,6 +177,8 @@ export const { registry } = defineRegistry(catalog, {
         </Card>
       );
     },
+
+    CategorizeQueue: ({ props }) => <CategorizeQueue title={props.title} limit={props.limit} />,
 
     Note: ({ props }) =>
       props.tone === 'warning' ? (
