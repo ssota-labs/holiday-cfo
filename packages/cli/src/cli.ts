@@ -986,8 +986,18 @@ ingest
   .description('record parsed transactions. Drafts for review by default; --post commits them directly. Never does OCR — you are the parser.')
   // NOT --json: that is the global machine-output flag, and commander resolves
   // one of them while silently ignoring the other. Made this mistake twice.
-  .requiredOption('--data <submission>', 'see the schema in src/ingest.ts. Legs, not a flat amount.')
-  .option('--image <path>', 'the screenshot, so the same file cannot be ingested twice')
+  .option('--data <submission>', 'submission JSON inline. See the schema in src/ingest.ts. Legs, not a flat amount.')
+  // argv has a hard size limit (~1MB on macOS), which is exactly why the first
+  // real-world import got chunked into nine batches — and chunking broke the
+  // one-source-file-one-batch mapping that provenance depends on. A file has no
+  // such limit: one bank export = one submission = one batch row.
+  .option('--data-file <path>', 'read the submission JSON from a file — required for large imports')
+  // Generalized from --image: ANY source file (bank HTML/CSV export, screenshot)
+  // gets hashed into the batch record. Identical bytes are the same export, so a
+  // re-import of the same file is BLOCKED by the ledger itself — provenance the
+  // next session can rely on instead of hoping nobody imports twice.
+  .option('--source <path>', 'the source file this submission was parsed from (hashed; re-import of identical bytes is refused)')
+  .option('--image <path>', 'alias of --source, kept for screenshots')
   .option('--idem-key <key>', 'retry-safe. Same key + same request replays the stored result.')
   // The whole batch is one unit of work, so this is the fast path for a large
   // history import: thousands of rows post in one process (one node start, one
@@ -996,29 +1006,38 @@ ingest
   // bulk import the statement balance (`assert`) is the real check, not per-row
   // human review.
   .option('--post', 'commit directly as posted, skipping the review queue', false)
-  .action(async (o: { data: string; image?: string; idemKey?: string; post: boolean }) => {
+  .action(async (o: { data?: string; dataFile?: string; source?: string; image?: string; idemKey?: string; post: boolean }) => {
     const ws = requireWorkspace();
     const config = readConfig(ws);
+
+    if (!o.data === !o.dataFile) {
+      throw new UsageError('pass exactly one of --data (inline JSON) or --data-file (path to JSON).');
+    }
+    const rawData = o.dataFile ? await (await import('node:fs/promises')).readFile(o.dataFile, 'utf8') : o.data!;
+
     const store = await openLedger(ws);
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(o.data);
+      parsed = JSON.parse(rawData);
     } catch (e) {
-      throw new UsageError(`--data is not valid JSON: ${(e as Error).message}`);
+      throw new UsageError(`the submission is not valid JSON: ${(e as Error).message}`);
     }
     const submission = INGEST_SUBMISSION.parse(parsed);
 
-    // Hash the image ourselves when we can see it. This is the one duplicate
-    // check that can block without ever being wrong: identical bytes are the
-    // same screenshot.
+    // Hash the source file ourselves when we can see it. This is the one
+    // duplicate check that can block without ever being wrong: identical bytes
+    // are the same export. It is also the provenance record — the batch row keeps
+    // the hash and the file name, so a later session can see exactly which
+    // exports are already in (`holiday ingest list`) instead of re-deriving it.
+    const sourcePath = o.source ?? o.image ?? null;
     let sourceSha = submission.sourceSha256 ?? null;
-    if (o.image) {
+    if (sourcePath) {
       const { readFile } = await import('node:fs/promises');
-      sourceSha = await sha256Bytes(new Uint8Array(await readFile(o.image)));
+      sourceSha = await sha256Bytes(new Uint8Array(await readFile(sourcePath)));
     }
 
-    const requestSha = await sha256(o.data);
+    const requestSha = await sha256(rawData);
     const replay = o.idemKey ? await store.read((r) => r.getCommandResult(o.idemKey!)) : null;
     if (replay) {
       // An agent shelling out to a CLI WILL retry on timeout. Double-posting is
@@ -1039,9 +1058,10 @@ ingest
         const seen = await uow.findIngestBatchBySha(sourceSha);
         if (seen) {
           throw new LedgerError(
-            'duplicate_image',
-            `this exact image was already ingested on ${seen.submittedAt} (${seen.itemCount} item(s)). ` +
-              `Dropping the same file twice is always a mistake.`,
+            'duplicate_source',
+            `this exact file was already ingested on ${seen.submittedAt}` +
+              `${seen.sourceName ? ` as "${seen.sourceName}"` : ''} (${seen.itemCount} item(s)). ` +
+              `Importing the same export twice is always a mistake — run \`holiday ingest list\` to see what is in.`,
           );
         }
       }
@@ -1073,7 +1093,7 @@ ingest
       await uow.recordIngestBatch({
         id: batchId,
         sourceSha256: sourceSha ?? `no-image:${batchId}`,
-        sourceName: submission.sourceName ?? (o.image ? o.image.split('/').at(-1)! : null),
+        sourceName: submission.sourceName ?? (sourcePath ? sourcePath.split('/').at(-1)! : null),
         submittedAt: nowIso(),
         itemCount: submission.items.length,
       });
@@ -1179,9 +1199,35 @@ ingest
     await store.close();
 
     out(result);
-    note(`${result.items.length}건을 DRAFT로 기록했습니다. 잔액·리포트에서 제외됩니다.`);
+    if (o.post) {
+      note(`${result.items.length}건을 POSTED로 기록했습니다. 잔액에 바로 반영됩니다.`);
+    } else {
+      note(`${result.items.length}건을 DRAFT로 기록했습니다. 잔액·리포트에서 제외됩니다.`);
+    }
     for (const i of result.items) for (const w of i.warnings) note(`  ⚠ ${w}`);
-    note(`검토: \`holiday review list\` → \`holiday review accept <id>\``);
+    if (!o.post) note(`검토: \`holiday review list\` → \`holiday review accept <id>\``);
+  });
+
+ingest
+  .command('list')
+  .description('every import that ever ran — which source files, when, how many rows')
+  .action(async () => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const batches = await store.read((r) => r.listIngestBatches());
+    await store.close();
+
+    if (jsonMode()) return out(batches);
+    if (batches.length === 0) {
+      note('임포트 이력이 없습니다.');
+      return;
+    }
+    // The provenance record. A fresh session reads this BEFORE importing, so the
+    // same export is never parsed and posted twice.
+    for (const b of batches) {
+      const src = b.sourceName ?? (b.sourceSha256.startsWith('no-image:') ? '(source not recorded)' : b.sourceSha256.slice(0, 12));
+      note(`${b.submittedAt}  ${String(b.itemCount).padStart(6)} item(s)  ${src}`);
+    }
   });
 
 const review = program.command('review').description('드래프트 검토 — 승인 전엔 장부가 아니다');

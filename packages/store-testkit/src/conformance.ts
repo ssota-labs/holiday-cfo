@@ -295,6 +295,37 @@ export function runLedgerStoreConformance(name: string, factory: () => Promise<L
         ).rejects.toThrow();
       });
     });
+
+    describe('import provenance', () => {
+      it('lists every ingest batch, newest first, and blocks a duplicate source', async () => {
+        // The batch record is what a later session reads to know which exports
+        // are already in. If listing lied about order or dropped rows, an agent
+        // would re-import a file it cannot see — so the listing is contract, not
+        // convenience. So is the unique source hash: identical bytes are the
+        // same export, and importing it twice must fail loudly.
+        const mk = (n: number) => ({
+          id: `01BATCH${String(n).padStart(19, '0')}`,
+          sourceSha256: `${String(n).repeat(1)}`.padEnd(64, 'f'),
+          sourceName: `export-${n}.html`,
+          submittedAt: `2026-07-1${n}T00:00:00.000Z`,
+          itemCount: n * 10,
+        });
+        await store.unitOfWork((uow) => uow.recordIngestBatch(mk(1)));
+        await store.unitOfWork((uow) => uow.recordIngestBatch(mk(2)));
+
+        const batches = await store.read((r) => r.listIngestBatches());
+        expect(batches.map((b) => b.sourceName)).toEqual(['export-2.html', 'export-1.html']);
+        expect(batches.map((b) => b.itemCount)).toEqual([20, 10]);
+
+        expect(await store.read((r) => r.findIngestBatchBySha(mk(1).sourceSha256))).toMatchObject({
+          sourceName: 'export-1.html',
+        });
+        // Same source bytes, new batch id — the unique constraint must refuse.
+        await expect(
+          store.unitOfWork((uow) => uow.recordIngestBatch({ ...mk(1), id: '01BATCH9999999999999999999' })),
+        ).rejects.toThrow();
+      });
+    });
   });
 }
 

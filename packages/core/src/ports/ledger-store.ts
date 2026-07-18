@@ -220,6 +220,12 @@ export interface LedgerRead {
   listFxRates(filter?: { base?: CommodityCode; quote?: CommodityCode; to?: IsoDate }): Promise<readonly FxRate[]>;
 
   findIngestBatchBySha(sha: string): Promise<IngestBatch | null>;
+  /**
+   * Every import that ever ran, newest first. This is the provenance record a
+   * fresh session checks before importing: which source files are already in,
+   * when, and how many rows — so the same export is never worked twice.
+   */
+  listIngestBatches(): Promise<readonly IngestBatch[]>;
   findIngestItemsByDedupeKey(key: string): Promise<readonly IngestItem[]>;
   listIngestItems(filter?: { status?: IngestItemStatus }): Promise<readonly IngestItem[]>;
 }

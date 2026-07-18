@@ -975,6 +975,12 @@ class SqlUow implements LedgerUow {
     return r ? mapBatch(r) : null;
   }
 
+  async listIngestBatches(): Promise<readonly IngestBatch[]> {
+    return (
+      await this.db.all<IngestBatchRaw>('SELECT * FROM ingest_batch ORDER BY submitted_at DESC, id DESC')
+    ).map(mapBatch);
+  }
+
   async findIngestItemsByDedupeKey(key: string): Promise<readonly IngestItem[]> {
     return (await this.db.all<IngestItemRaw>('SELECT * FROM ingest_item WHERE dedupe_key = ? ORDER BY created_at', key))
       .map(mapItem);

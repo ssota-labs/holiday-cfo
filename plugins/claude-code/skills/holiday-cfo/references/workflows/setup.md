@@ -32,12 +32,27 @@ is an agent task and not a CLI flag.
 - Map each row to a double entry. The money leg is the bank or card; the other leg
   is a category (`Expenses:...`) or income. Ask the user how to categorise the ones
   you cannot infer, or bucket them into `Expenses:Uncategorized` and tell them.
-- Post them. For a few hundred rows, a loop of `holiday txn add` is fine. For a
-  large history (thousands of rows), **do not** loop `txn add` — each call pays
-  ~30ms of node startup, so 8,000 rows is ~9 minutes. Instead batch them through
-  one `holiday ingest submit --post` call: the whole batch is one process and one
-  transaction, so thousands of rows post in seconds. `--post` commits directly
-  (no review queue); build the JSON `{ "items": [ ... ] }` in your script.
+- **Before parsing anything, run `holiday ingest list`.** It shows every import
+  that ever ran — which source files, when, how many rows. The ledger is the
+  provenance record, not your memory of the session; a file already listed is
+  done, skip it.
+- Post them, **one source file = one submission**:
+
+  ```bash
+  holiday ingest submit --post --data-file batch.json --source "raw_data/bank-2024.html"
+  ```
+
+  `--data-file` reads the `{ "items": [ ... ] }` JSON your script built (argv has a
+  ~1MB limit, so inline `--data` forces chunking on big files — and chunking breaks
+  the file↔batch mapping). `--source` hashes the RAW export into the batch record:
+  re-importing identical bytes is refused by the ledger itself (`duplicate_source`),
+  and the file name shows up in `ingest list`. That pairing is what lets the next
+  session see exactly what is in without re-deriving anything.
+- For a few hundred rows a loop of `holiday txn add` is also fine — but it leaves
+  no source record, so prefer the batch path whenever the rows came from a file.
+  Do NOT loop `txn add` for thousands of rows: each call pays ~30ms of node
+  startup, so 8,000 rows is ~9 minutes; the batch is one process and posts in
+  seconds. `--post` commits directly (no review queue).
 - Then `holiday verify` and `holiday balance`, and `assert` the closing balance
   against the statement so a mis-parsed sign shows up immediately.
 
