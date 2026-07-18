@@ -8,6 +8,9 @@
 > **경고:** v0.1이다. 원장 포맷은 아직 약속이 아니다 — 마이그레이션은 append-only지만
 > 스키마는 굳지 않았다. 자기 돈으로 쓰기 전에 [무엇이 없는지](#아직-없는-것)를 읽어라.
 
+**바로 시작 → [설치](#설치).** Claude Code나 Codex 채팅에 두 줄 붙여넣으면 끝. 그다음은
+"가계부 시작하자"처럼 말만 하면 된다.
+
 ## 왜 하나 더 만드나
 
 가계부 앱은 대부분 단식부기 + 카테고리에서 멈춘다. 그럼 두 가지를 못 한다.
@@ -42,26 +45,45 @@ cash on hand (2026-07-17):  3000000 KRW
 
 ## 설치
 
-**Claude Code**
+이미 **Claude Code**나 **Codex**를 쓰고 있다면, 채팅창에 아래 두 줄을 그대로
+붙여넣으면 끝이다. ("마켓플레이스"는 플러그인을 받아오는 창구다 — 첫 줄이 그걸
+등록하고, 둘째 줄이 설치한다. 개념은 몰라도 된다. 그냥 붙여넣으면 된다.)
 
-```bash
+**Claude Code** — 채팅에 붙여넣기:
+
+```
 /plugin marketplace add ssota-labs/holiday-cfo
 /plugin install holiday@ssota-labs
 ```
 
-**Codex**
+**Codex** — 터미널에서:
 
 ```bash
 codex plugin marketplace add ssota-labs/holiday-cfo
 codex plugin install holiday
 ```
 
-두 플러그인은 스킬만 담는다. CLI 자체는 npm에 있고, 첫 실행 때
-`npx @holiday-cfo/cli@latest`로 받아진다.
-
-Node 24+ 필요. `node:sqlite`가 builtin이라 네이티브 애드온도 설치 스텝도 없다.
+이게 전부다. 나머지(원장을 다루는 CLI)는 처음 쓸 때 `npx @holiday-cfo/cli`로 자동으로
+받아진다. **Node 24+** 만 깔려 있으면 된다 ([nodejs.org](https://nodejs.org)에서 설치).
 
 ## 시작
+
+설치했으면 명령어를 외울 필요가 없다. 그냥 말하면 된다:
+
+- **"가계부 시작하고 싶어"** → 원장을 만들고 통장·카드 세팅을 같이 잡아준다
+- **"어제 이마트에서 42,000원 썼어"** → 기록
+- **"은행 앱 거래내역 캡쳐한 거 있는데 넣어줘"** → 이미지를 읽어서 입력
+- **"거래내역 CSV 파일 있어"** → 파일을 읽어서 통째로 입력
+- **"이번 달 카드값 내면 현금 괜찮아?"** → 할부·정기지출까지 계산해서 답
+- **"3천만원짜리 전세 들어가면 6월에 현금 어때?"** → 원장은 안 건드리고 시뮬레이션
+
+원장은 만든 폴더의 `.holiday/`에 저장된다. **꼭 비공개(private) 저장소에 두어라** —
+당신 돈이다.
+
+<details>
+<summary>플러그인 없이 CLI만 직접 쓰기</summary>
+
+터미널에서 `npx @holiday-cfo/cli`로 바로 쓸 수도 있다. `holiday`는 그 CLI다:
 
 ```bash
 holiday init --currency KRW
@@ -77,8 +99,7 @@ holiday txn add --date 2026-07-17 --payee "이마트" \
 holiday cashflow
 ```
 
-**디렉터리는 private 레포여야 한다.** `.holiday/ledger.db`가 당신 돈이고, 커밋하라고 만든
-파일이다.
+</details>
 
 ## 설계
 
