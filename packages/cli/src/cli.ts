@@ -1366,6 +1366,121 @@ rule
     out({ removed: id });
   });
 
+program
+  .command('recategorize')
+  .description('move POSTED amounts to another category, as correction entries — history stays')
+  .requiredOption('--to <code>', 'the category to move to')
+  .option('--payee <substring>', 'only transactions whose payee contains this')
+  .option('--from <code>', 'only legs on this category (default: both Uncategorized accounts)')
+  .option('--date <date>', 'correction date', today())
+  .option('--dry-run', 'report what would move, write nothing', false)
+  .action(async (o: { to: string; payee?: string; from?: string; date: string; dryRun: boolean }) => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const when = assertIsoDate(o.date);
+
+    const result = await store.unitOfWork(async (uow) => {
+      const accounts = await uow.listAccounts();
+      const byCode2 = new Map(accounts.map((a) => [a.code as string, a]));
+      const target = byCode2.get(o.to);
+      if (!target) throw new UsageError(`no such account: ${o.to}`);
+      if (target.placeholder) throw new UsageError(`${o.to} is a placeholder and cannot be posted to.`);
+      const fromIds = new Set(
+        (o.from
+          ? [o.from]
+          : ['Expenses:Uncategorized', 'Income:Uncategorized']
+        )
+          .map((c) => byCode2.get(c)?.id)
+          .filter((id): id is AccountId => !!id),
+      );
+      if (fromIds.size === 0) throw new UsageError(`no such account: ${o.from}`);
+      if (fromIds.has(target.id)) throw new UsageError('--from and --to are the same account.');
+
+      const all = await uow.listTxns({ statuses: ['posted'] });
+      // Run-twice safety: a transaction that already has a correction pointing at
+      // it is skipped. Without this, re-running the same recategorize would move
+      // the money twice — the classic correction-batch footgun.
+      const alreadyCorrected = new Set(all.map((t) => t.txn.correctsTxnId).filter(Boolean));
+
+      const hay = o.payee?.toLowerCase();
+      const moved: { txnId: string; payee: string | null; minor: string }[] = [];
+      let correctionCount = 0;
+      for (const t of all) {
+        if (hay && !(t.txn.payee ?? '').toLowerCase().includes(hay)) continue;
+        if (alreadyCorrected.has(t.txn.id)) continue;
+        // A correction is never itself recategorized. Without this, the batch's
+        // own output matches the filter on the next run (same payee, a leg on the
+        // from-account) and produces a correction OF the correction — which
+        // exactly reverses it. Found by running it twice, not by review.
+        if (t.txn.correctsTxnId) continue;
+        const legs = t.txn.postings.filter((pLeg) => fromIds.has(pLeg.accountId));
+        if (legs.length === 0) continue;
+        for (const pLeg of legs) {
+          if (target.commodity && pLeg.units.commodity !== target.commodity) {
+            throw new UsageError(
+              `${o.to} is ${target.commodity}-only but txn ${t.txn.id} has a ${pLeg.units.commodity} leg.`,
+            );
+          }
+        }
+        if (!o.dryRun) {
+          const created = Txn.create({
+            id: nextUlid() as TxnId,
+            date: when,
+            bookingCommodity: t.txn.bookingCommodity,
+            payee: t.txn.payee,
+            narration: `recategorize: ${legs.map((l) => byId2Code(accounts, l.accountId)).join(',')} → ${o.to}`,
+            systemKind: null,
+            correctsTxnId: t.txn.id,
+            sourceItemId: null,
+            tags: [],
+            meta: { recategorize: true },
+            postings: legs.flatMap((pLeg, i) => [
+              {
+                seq: i * 2,
+                accountId: pLeg.accountId,
+                units: amountsOf(pLeg).negated,
+                weightMinor: -pLeg.weightMinor,
+                // Mirror the original leg's provenance: identity stays identity,
+                // an FX weight stays the observed weight it was.
+                weightSource: pLeg.weightSource,
+                fxRateText: null,
+                fxRateId: null,
+                lotId: null,
+                kind: 'normal' as const,
+                memo: null,
+              },
+              {
+                seq: i * 2 + 1,
+                accountId: target.id,
+                units: amountsOf(pLeg).same,
+                weightMinor: pLeg.weightMinor,
+                weightSource: pLeg.weightSource,
+                fxRateText: null,
+                fxRateId: null,
+                lotId: null,
+                kind: 'normal' as const,
+                memo: null,
+              },
+            ]),
+          });
+          if (!created.ok) throw new LedgerError('internal', created.error.map(describeTxnError).join('\n'));
+          await uow.appendTxn(created.value, { status: 'posted' });
+          correctionCount++;
+        }
+        for (const pLeg of legs) moved.push({ txnId: t.txn.id, payee: t.txn.payee, minor: pLeg.units.minor.toString() });
+      }
+      return { moved, correctionCount, dryRun: o.dryRun };
+    });
+    await store.close();
+
+    out(result);
+    if (result.dryRun) {
+      note(`${result.moved.length}건이 이동 대상입니다 (미적용 — --dry-run 없이 다시).`);
+    } else {
+      note(`correction ${result.correctionCount}건 추가 — 원거래는 그대로, 잔액만 ${o.to} 로 이동했습니다.`);
+    }
+  });
+
 const review = program.command('review').description('드래프트 검토 — 승인 전엔 장부가 아니다');
 
 review
@@ -1913,6 +2028,21 @@ program
  * a misread amount is a re-submission, because amount edits are where mistakes
  * and fraud hide.
  */
+/** The same units, and their negation, as Amount objects for a correction pair. */
+function amountsOf(pLeg: { units: { minor: bigint; commodity: CommodityCode } }): {
+  same: { minor: bigint; commodity: CommodityCode };
+  negated: { minor: bigint; commodity: CommodityCode };
+} {
+  return {
+    same: { minor: pLeg.units.minor, commodity: pLeg.units.commodity },
+    negated: { minor: -pLeg.units.minor, commodity: pLeg.units.commodity },
+  };
+}
+
+function byId2Code(accounts: readonly Account[], id: AccountId): string {
+  return (accounts.find((a) => a.id === id)?.code as string) ?? id;
+}
+
 async function supersedeDraftAs(
   uow: LedgerUow,
   itemId: string,
