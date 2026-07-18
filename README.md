@@ -45,14 +45,14 @@ cash on hand (2026-07-17):  3000000 KRW
 **Claude Code**
 
 ```bash
-/plugin marketplace add ssota-labs/holiday
+/plugin marketplace add ssota-labs/holiday-cfo
 /plugin install holiday@ssota-labs
 ```
 
 **Codex**
 
 ```bash
-codex plugin marketplace add ssota-labs/holiday
+codex plugin marketplace add ssota-labs/holiday-cfo
 codex plugin install holiday
 ```
 
@@ -85,7 +85,7 @@ holiday cashflow
 정책이 곧 제품이다. 규칙 하나하나가 **그걸 강제하는 테스트에 링크**돼 있고, CI가 링크를
 검사한다 — 링크가 해결되지 않는 정책 문서는 없는 것보다 나쁘다. 증거처럼 읽히니까.
 
-- **[문서](https://github.com/ssota-labs/holiday/tree/main/apps/docs)** — 데이터 모델, 스케줄 네 개, CLI 스펙, 정책과 용어
+- **[문서](https://github.com/ssota-labs/holiday-cfo/tree/main/apps/docs)** — 데이터 모델, 스케줄 네 개, CLI 스펙, 정책과 용어
 - 모든 페이지에 `.md` 쌍둥이가 있다. 이 도구를 운전하는 게 에이전트라서.
 
 몇 가지 결정:

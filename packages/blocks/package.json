@@ -6,7 +6,7 @@
   "description": "The dashboard vocabulary an agent may use: \uac00\uacc4\ubd80 nouns, not shadcn primitives, and no prop that holds money.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ssota-labs/holiday.git",
+    "url": "git+https://github.com/ssota-labs/holiday-cfo.git",
     "directory": "packages/blocks"
   },
   "publishConfig": {

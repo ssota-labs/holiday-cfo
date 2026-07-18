@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ssota-labs/holiday.git",
+    "url": "git+https://github.com/ssota-labs/holiday-cfo.git",
     "directory": "packages/store-sql"
   }
 }
