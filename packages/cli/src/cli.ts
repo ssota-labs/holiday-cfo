@@ -120,8 +120,8 @@ program
     });
     await store.close();
     out({ workspace: ws, functionalCurrency: currency, closeGrain: o.closeGrain });
-    note(`Ledger created at ${ws}`);
-    note(`Commit ledger.db. Keep this repository PRIVATE — it is your money.`);
+    note(`장부를 만들었습니다: ${ws}`);
+    note(`ledger.db는 커밋해 두세요. 이 저장소는 반드시 비공개(private)여야 합니다 — 당신의 돈입니다.`);
   });
 
 const account = program.command('account').description('manage accounts');
@@ -159,7 +159,7 @@ account
     out({ id: acct.id, code: acct.code, type: acct.type, commodity: acct.commodity, cash: acct.cash });
     if (acct.type === 'asset' && !o.cash) {
       // Silence here is how an account full of money vanishes from the projection.
-      note(`${code} is not marked --cash, so it is NOT counted in \`holiday cashflow\`.`);
+      note(`${code}는 --cash 표시가 없어 현금흐름 계산에 들어가지 않습니다.`);
     }
   },
 );
@@ -302,7 +302,7 @@ card
         paymentDay: o.paymentDay,
       });
       out({ card: code, funding: o.funding, example: { purchasedToday: today(), ...dates } });
-      note(`A purchase today (${today()}) closes ${dates.closeDate} and takes cash on ${dates.paymentDate}.`);
+      note(`오늘(${today()}) 결제분은 ${dates.closeDate}에 마감되어 ${dates.paymentDate}에 출금됩니다.`);
     },
   );
 
@@ -332,7 +332,7 @@ card
       const when = c.rule.paymentMonthOffset === 0 ? '당월' : c.rule.paymentMonthOffset === 1 ? '익월' : `${c.rule.paymentMonthOffset}개월 후`;
       note(`${(c.label ?? code).padEnd(20)} ${close} 마감 → ${when} ${pay} 결제   ← ${funding}`);
       // The rule in the abstract is unverifiable by a human; a worked date is not.
-      note(`${''.padEnd(20)} a purchase today (${now}) takes cash on ${example.paymentDate}`);
+      note(`${''.padEnd(20)} 오늘(${now}) 결제분은 ${example.paymentDate} 출금`);
     }
   });
 
@@ -404,7 +404,7 @@ installment
             openedOn: purchasedOn,
             closedOn: null,
           });
-          note(`created ${liabilityCode} (installment balances are kept apart from ordinary card charges)`);
+          note(`${liabilityCode} 계정을 만들었습니다 (할부 잔액은 일반 카드 사용액과 분리해 둡니다).`);
         }
 
         // Observed fees only. We will not compute 할부수수료 — see POLICY-006.
@@ -475,7 +475,7 @@ installment
       if (feeTotal > 0n) {
         note(`할부수수료 합계 ${amounts.format({ minor: feeTotal, commodity: totalAmount.commodity })} — 명세서에서 읽은 값 그대로. 계산하지 않음.`);
       }
-      note(`실제 명세서와 다르면 \`holiday installment revise ${result.id}\`로 덮어쓰세요.`);
+      note(`실제 명세서와 다르면 \`holiday installment revise ${result.id}\`로 맞춰 주세요.`);
     },
   );
 
@@ -664,7 +664,7 @@ recurring
     }
     if (result.length === 0) return note('no active recurring expenses.');
     note('');
-    note(`monthly total: ${amounts.format({ minor: monthly, commodity: config.functionalCurrency })} ${config.functionalCurrency}`);
+    note(`월 합계: ${amounts.format({ minor: monthly, commodity: config.functionalCurrency })} ${config.functionalCurrency}`);
   });
 
 program
@@ -716,7 +716,7 @@ program
     note(`   장부:   ${money(result.actual).padStart(18)}`);
     note(`   차이:   ${money(result.deltaMinor).padStart(18)}`);
     // This is the ONLY check that compares the ledger to the outside world.
-    note(`   놓친 거래, 오독한 금액, 또는 중복입니다. 마감은 이게 맞을 때까지 막힙니다.`);
+    note(`   놓친 거래, 잘못 읽은 금액, 또는 중복입니다. 맞을 때까지 마감이 막힙니다.`);
     throw new LedgerError('assertion_failed', `${result.code} disagrees with the ledger by ${result.deltaMinor}`);
   });
 
@@ -823,7 +823,7 @@ program
     if (o.dryRun) {
       await store.close();
       out({ month, wouldRevalue: plan.lines.length, assertions: plan.assertionCount, dryRun: true });
-      note(`${month} 마감 가능. 단언 ${plan.assertionCount}건 통과.`);
+      note(`${month}은 마감할 수 있습니다. 잔액 대조 ${plan.assertionCount}건 통과.`);
       for (const l of plan.lines) note(`  재평가 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
       if (plan.lines.length === 0) note('  재평가할 외화 계정 없음.');
       return;
@@ -899,11 +899,11 @@ program
     await store.close();
 
     out({ month, closed: true, revaluationTxnId: result.txnId, snapshotAccounts: result.accounts });
-    note(`${month} 마감. 스냅샷 ${result.accounts}개 계정.`);
+    note(`${month}을 마감했습니다. 계정 ${result.accounts}개를 스냅샷으로 남겼습니다.`);
     for (const l of plan.lines) note(`  재평가 ${l.accountCode.padEnd(30)} ${money(l.deltaMinor).padStart(14)} KRW`);
     if (plan.assertionCount === 0) {
       // Not a hard gate — a new ledger has none — but worth saying.
-      note(`  ⚠ 이 기간에 잔고 단언이 없었습니다. 명세서와 대조되지 않은 달은 얼린 것이지 마감한 게 아닙니다.`);
+      note(`  ⚠ 이 기간에는 잔액 대조가 없었습니다. 명세서와 대조하지 않은 달은 얼린 것이지 마감한 것이 아닙니다.`);
     }
   });
 
@@ -930,7 +930,7 @@ fx
     out({ base: b, quote: qc, rate: rateText, asOf, source: o.source, written });
     note(`1 ${b} = ${rateText} ${qc} (${asOf}, ${o.source})`);
     // The property that makes rates safe to correct.
-    note(`이미 기표된 weight는 바뀌지 않습니다. 환율은 앞으로의 유도와 재평가에만 쓰입니다.`);
+    note(`이미 확정된 금액은 바뀌지 않습니다. 환율은 앞으로의 계산과 재평가에만 쓰입니다.`);
   });
 
 fx
@@ -1278,11 +1278,11 @@ ingest
     // exact items that need a human.
     const posted = result.postedCount;
     const pending = result.pendingCount;
-    if (posted > 0) note(`${posted}건 POSTED — 잔액에 바로 반영됩니다.`);
+    if (posted > 0) note(`${posted}건을 확정했습니다 — 잔액에 바로 반영됩니다.`);
     if (pending > 0) {
-      note(`${pending}건은 분류 미매칭이라 DRAFT로 남았습니다 (잔액 제외).`);
-      note(`분류하기: 대시보드를 띄워 클릭으로 고르거나(\`holiday dash init\` 후 \`pnpm dev\` — 분류 대기 카드),`);
-      note(`          \`holiday rule add <패턴> <카테고리>\` 후 \`holiday review apply-rules --accept\`.`);
+      note(`${pending}건은 분류 규칙이 없어 분류 대기로 남았습니다 (잔액 제외).`);
+      note(`다음: 대시보드의 분류 대기 카드에서 클릭으로 고르시거나(\`holiday dash init\` 후 \`pnpm dev\`),`);
+      note(`      \`holiday rule add <패턴> <카테고리>\` 뒤 \`holiday review apply-rules --accept\`로 한꺼번에 승인할 수 있습니다.`);
     }
     for (const i of result.items) for (const w of i.warnings) note(`  ⚠ ${w}`);
   });
@@ -1298,14 +1298,14 @@ ingest
 
     if (jsonMode()) return out(batches);
     if (batches.length === 0) {
-      note('임포트 이력이 없습니다.');
+      note('수집 이력이 없습니다.');
       return;
     }
     // The provenance record. A fresh session reads this BEFORE importing, so the
     // same export is never parsed and posted twice.
     for (const b of batches) {
       const src = b.sourceName ?? (b.sourceSha256.startsWith('no-image:') ? '(source not recorded)' : b.sourceSha256.slice(0, 12));
-      note(`${b.submittedAt}  ${String(b.itemCount).padStart(6)} item(s)  ${src}`);
+      note(`${b.submittedAt}  ${String(b.itemCount).padStart(6)}건  ${src}`);
     }
   });
 
@@ -1348,7 +1348,7 @@ rule
     });
     await store.close();
     out({ id, pattern, match: o.regex ? 'regex' : 'contains', category, priority: o.priority });
-    note(`규칙 추가됨. 다음 임포트부터 적용됩니다 — 이미 있는 draft 는 \`holiday review apply-rules\`.`);
+    note(`분류 규칙을 추가했습니다. 다음 수집부터 적용됩니다 — 이미 대기 중인 건은 \`holiday review apply-rules\`로.`);
   });
 
 rule
@@ -1360,7 +1360,7 @@ rule
     const rules = await store.read((r) => r.listRules());
     await store.close();
     if (jsonMode()) return out(rules);
-    if (rules.length === 0) return note('규칙이 없습니다. `holiday rule add "스타벅스" Expenses:Food:Cafe`');
+    if (rules.length === 0) return note('분류 규칙이 없습니다. 예: `holiday rule add "스타벅스" Expenses:Food:Cafe`');
     for (const r of rules) {
       note(`${r.id}  [${String(r.priority).padStart(3)}] ${r.match === 'regex' ? '/' + r.pattern + '/' : JSON.stringify(r.pattern)}  →  ${r.category}`);
     }
@@ -1486,9 +1486,9 @@ program
 
     out(result);
     if (result.dryRun) {
-      note(`${result.moved.length}건이 이동 대상입니다 (미적용 — --dry-run 없이 다시).`);
+      note(`${result.moved.length}건이 이동 대상입니다 (아직 적용 전 — --dry-run 없이 다시 실행하세요).`);
     } else {
-      note(`correction ${result.correctionCount}건 추가 — 원거래는 그대로, 잔액만 ${o.to} 로 이동했습니다.`);
+      note(`정정 ${result.correctionCount}건을 기록했습니다 — 원래 기록은 그대로 두고 잔액만 ${o.to}로 옮겼습니다.`);
     }
   });
 
@@ -1532,7 +1532,7 @@ review
       }
     }
     note('');
-    note(`${result.length}건 대기. \`holiday review accept <id>\` / \`reject <id> --reason\``);
+    note(`${result.length}건이 승인 대기 중입니다. \`holiday review accept <id>\` / \`reject <id> --reason\``);
   });
 
 review
@@ -1567,7 +1567,7 @@ review
     });
     await store.close();
     out({ ...result, status: 'accepted', ...(o.category ? { category: o.category } : {}) });
-    note(`승인됨. 이제 잔액과 현금흐름에 들어갑니다.`);
+    note(`승인했습니다. 잔액과 현금흐름에 반영됩니다.`);
   });
 
 review
@@ -1588,7 +1588,7 @@ review
     await store.close();
     out({ id, status: 'rejected', reason: o.reason });
     // Deleting it would let the same screenshot be re-proposed forever.
-    note(`거부됨. 기록은 남습니다 — 같은 캡쳐가 다시 제안되는 걸 막는 기억입니다.`);
+    note(`반려했습니다. 기록은 남습니다 — 같은 캡쳐가 다시 올라오는 것을 막는 기억입니다.`);
   });
 
 review
@@ -1635,9 +1635,9 @@ review
 
     out(result);
     if (result.accepted) {
-      note(`${result.matched.length}건 확정, ${result.unmatchedCount}건은 규칙 없음 — 남은 건 dash 나 rule add 로.`);
+      note(`${result.matched.length}건을 승인했습니다. ${result.unmatchedCount}건은 규칙이 없습니다 — 대시보드의 분류 대기 카드나 \`holiday rule add\`로.`);
     } else {
-      note(`${result.matched.length}건이 규칙과 일치 (미적용 — --accept 로 확정), ${result.unmatchedCount}건은 규칙 없음.`);
+      note(`${result.matched.length}건이 규칙과 일치합니다 (아직 적용 전 — --accept로 승인), ${result.unmatchedCount}건은 규칙 없음.`);
     }
     for (const w of result.warnings) note(`  ⚠ ${w}`);
   });
@@ -1732,7 +1732,7 @@ loan
       // The number a borrower actually wants and never gets told: what it costs.
       note(`1회차 ${money(rows[0]!.principalMinor + rows[0]!.interestMinor)} (원금 ${money(rows[0]!.principalMinor)} + 이자 ${money(rows[0]!.interestMinor)})`);
       note(`총 이자 ${money(scheduleInterest(rows))}`);
-      note(`이건 예측입니다. 실제 잔액과 어긋나는지는 \`holiday loan check\`.`);
+      note(`이 스케줄은 예측입니다. 실제와 어긋나는지는 \`holiday loan check\`로 확인하세요.`);
     },
   );
 
@@ -1878,7 +1878,7 @@ loan
         // Do NOT silently reallocate. Interest is what the lender charged; the
         // difference is principal, and if that is wrong the user needs to see it
         // rather than have us quietly rebalance the entry.
-        note(`⚠ 실제 ${paid}, 스케줄 ${scheduled}. 차액을 원금에 반영합니다 — 명세서와 대조하세요.`);
+        note(`⚠ 실제 ${paid}, 스케줄 ${scheduled}. 차액은 원금에 반영했습니다 — 명세서와 대조해 주세요.`);
       }
       const interest = row.interestMinor;
       const principal = paid - interest;
@@ -1992,9 +1992,9 @@ program
 
     const money = (m: bigint) => amounts.format({ minor: m, commodity: proj.commodity });
     for (const g of proj.gaps) note(`⚠ ${g.subject} ${g.detail}.`);
-    note(`cash on hand (${now}):  ${money(proj.openingCashMinor)} ${proj.commodity}`);
+    note(`현재 현금 (${now}): ${money(proj.openingCashMinor)} ${proj.commodity}`);
     if (runway.length === 0) {
-      note(`no card bills projected through ${until}.`);
+      note(`${until}까지 예정된 지출이 없습니다.`);
       return;
     }
     note('');
@@ -2003,7 +2003,7 @@ program
       // A day's net can be an inflow now that --receive exists: a negative outflow
       // is money arriving, so show it as +, not as a double-negative "- -3,000,000".
       const net = p.outflowMinor >= 0n ? `-${money(p.outflowMinor)}` : `+${money(-p.outflowMinor)}`;
-      note(`${p.date}   ${net.padStart(13)}   →  ${money(p.balanceAfterMinor).padStart(12)}${short ? '   ⚠ SHORT' : ''}`);
+      note(`${p.date}   ${net.padStart(13)}   →  ${money(p.balanceAfterMinor).padStart(12)}${short ? '   ⚠ 부족' : ''}`);
       for (const b of p.items) {
         const line = b.amountMinor >= 0n ? `-${money(b.amountMinor)}` : `+${money(-b.amountMinor)}`;
         note(`             ${b.label.padEnd(30)} ${line.padStart(13)}`);
@@ -2012,9 +2012,9 @@ program
     const worst = runway.reduce((a, b) => (b.balanceAfterMinor < a.balanceAfterMinor ? b : a));
     note('');
     if (worst.balanceAfterMinor < 0n) {
-      note(`⚠ Short by ${money(-worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
+      note(`⚠ ${worst.date}에 ${money(-worst.balanceAfterMinor)} ${proj.commodity}가 부족합니다.`);
     } else {
-      note(`Lowest point: ${money(worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
+      note(`최저점: ${worst.date}, ${money(worst.balanceAfterMinor)} ${proj.commodity}.`);
     }
   });
 
@@ -2225,7 +2225,7 @@ program
     if (jsonMode()) return out({ ...report, head });
     if (o.head) note(head ? `chain head: #${head.seq} ${head.hash}` : 'chain head: (empty ledger)');
     if (report.ok) {
-      note(`OK — ${report.checked} transaction(s) checked, audit chain intact.`);
+      note(`이상 없습니다 — 거래 ${report.checked}건 검사, 감사 체인 무결.`);
       return;
     }
     for (const p of report.problems) note(`${p.kind}  ${p.subject}\n  ${p.detail}`);
@@ -2270,10 +2270,10 @@ dash
     writeFileSync(join(dest, 'src', 'data', 'ledger.json'), `${JSON.stringify(data, null, 2)}\n`);
 
     out({ dir: dest, created, skipped });
-    note(`Dashboard scaffolded at ${dest}`);
-    if (skipped.length > 0) note(`Kept your existing: ${skipped.join(', ')}`);
+    note(`대시보드를 만들었습니다: ${dest}`);
+    if (skipped.length > 0) note(`기존 파일은 그대로 두었습니다: ${skipped.join(', ')}`);
     note(`  cd ${o.dir} && pnpm install && pnpm dev`);
-    note(`Edit src/data/spec.json to choose the layout. Never edit ledger.json — run \`holiday dash data\`.`);
+    note(`레이아웃은 src/data/spec.json에서 고르세요. ledger.json은 직접 수정하지 말고 \`holiday dash data\`로 다시 굽습니다.`);
   });
 
 dash
@@ -2297,8 +2297,8 @@ dash
     }
     writeFileSync(dest, `${JSON.stringify(data, null, 2)}\n`);
     if (jsonMode()) return out(data);
-    note(`Baked ${dest}`);
-    note(`This is a SNAPSHOT. Re-run after every txn add / ingest / close.`);
+    note(`스냅샷을 구웠습니다: ${dest}`);
+    note(`스냅샷은 그 시점의 사진입니다. 기록·수집·마감 후에는 다시 구워 주세요.`);
   });
 
 // No `dash catalog` command, on purpose. The catalog is a Zod object in
