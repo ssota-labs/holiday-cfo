@@ -5,17 +5,23 @@ skill body). The goal here is a ledger that reflects reality now, then as much
 history as is worth entering.
 
 1. **Create it.** `holiday init --currency KRW` (ask the currency).
-2. **Accounts.** Banks, cards, cash, income, the debts. Mark spendable accounts
-   `--cash`. Set card billing cycles with `holiday card add`, 할부 and 정기지출,
-   loans. See `../concepts/accounts.md` and `../concepts/schedules.md`.
-3. **Opening balances.** For each asset/liability that already has a balance, post
+2. **Accounts — offer the standard chart.** Propose `../concepts/chart.md` ("이
+   표준 차트로 시작할까요?") and create what the user accepts, then their actual
+   banks/cards/debts on top. Mark spendable accounts `--cash`. Set card billing
+   cycles with `holiday card add`, 할부 and 정기지출, loans. Naming rules in
+   `../concepts/accounts.md`, schedules in `../concepts/schedules.md`.
+3. **Classification rules, before importing.** Seed obvious ones from the chart —
+   `holiday rule add "스타벅스" Expenses:Food:Cafe` — so the import classifies
+   itself. Whatever no rule matches lands in Uncategorized as a DRAFT for the
+   user to pick later; every rule you add up front shrinks that pile.
+4. **Opening balances.** For each asset/liability that already has a balance, post
    it against `Equity:Opening` dated the start point:
    `holiday txn add --date 2026-01-01 --leg "Assets:Bank:Shinhan 4310000 KRW" --leg "Equity:Opening -4310000 KRW"`.
-4. **History, if they have a file.** This is where you earn your keep — see below.
-5. **Confirm.** `holiday balance`, then `holiday assert` each account against what
+5. **History, if they have a file.** This is where you earn your keep — see below.
+6. **Confirm.** `holiday balance`, then `holiday assert` each account against what
    the user can see in their banking app. Assertions are the only check against the
    outside world; use them.
-6. **Offer automation.** Once the ledger is real, ask about scheduling the daily /
+7. **Offer automation.** Once the ledger is real, ask about scheduling the daily /
    weekly / monthly workflows — `../automation.md`.
 
 ## Importing a CSV or Excel export — you are the importer
