@@ -23,23 +23,25 @@ summary: SKILL.md는 항상 로드된다. references/는 작업이 요구할 때
 작업이 실제로 요구할 때만 읽힌다.
 
 <Files>
-  <Folder name="plugin" defaultOpen>
-    <Folder name=".claude-plugin">
-      <File name="plugin.json" />
-    </Folder>
-    <Folder name="bin">
-      <File name="holiday.mjs" />
-    </Folder>
-    <Folder name="skills" defaultOpen>
-      <Folder name="holiday-cfo" defaultOpen>
-        <File name="SKILL.md" />
-        <Folder name="references" defaultOpen>
-          <File name="ledger-model.md" />
-          <File name="accounts.md" />
-          <File name="schedules.md" />
-          <File name="recipes.md" />
+  <Folder name="plugins" defaultOpen>
+    <Folder name="claude-code" defaultOpen>
+      <Folder name=".claude-plugin">
+        <File name="plugin.json" />
+      </Folder>
+      <Folder name="skills" defaultOpen>
+        <Folder name="holiday-cfo" defaultOpen>
+          <File name="SKILL.md" />
+          <Folder name="references" defaultOpen>
+            <File name="ledger-model.md" />
+            <File name="accounts.md" />
+            <File name="schedules.md" />
+            <File name="recipes.md" />
+          </Folder>
         </Folder>
       </Folder>
+    </Folder>
+    <Folder name="codex">
+      <File name="SKILL.md (동일 스킬)" />
     </Folder>
   </Folder>
 </Files>

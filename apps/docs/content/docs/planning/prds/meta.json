@@ -1,0 +1,9 @@
+{
+  "title": "PRDs",
+  "pages": [
+    "prd-0.1-foundation"
+  ],
+  "collapsible": true,
+  "defaultOpen": true,
+  "pagesIndex": "index"
+}
