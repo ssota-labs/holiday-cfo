@@ -2,7 +2,7 @@
 
 채팅으로 가계부를 적는 1인용 복식부기 원장이다. 에이전트가 말을 듣고, CLI가 장부를 지키며, 데이터는 로컬 SQLite에 남는다.
 
-지금은 **v0.1**이다. 스키마와 명령이 아직 굳지 않았다. 깨질 변경이 올 수 있다. 바로 쓰려면 [설치](#설치)로 가라.
+지금은 **v0.1**이다. 스키마와 명령이 아직 굳지 않았다. 깨질 변경이 올 수 있다. 바로 쓰려면 [시작하기](#시작하기)로 가라.
 
 ## 개요
 
@@ -18,18 +18,50 @@ CLI가 맡는 일:
 
 원장 파일은 작업 폴더의 `.holiday/ledger.db`다. 돈 기록이니 **비공개(private) git 저장소**에 두라.
 
-## 설치
+## 시작하기
 
-### Claude Code
+가계부로 쓸 폴더를 열고, 아래 **한 덩어리**를 채팅에 그대로 넣는다. 플러그인 설치와 원장 만들기가 이어진다.
 
-에이전트 답에 적힌 `/plugin …`은 실행되지 않는다. 아래 두 줄은 채팅에 직접 넣는다.
+**Claude Code**
 
 ```
 /plugin marketplace add ssota-labs/holiday-cfo
 /plugin install holiday-cfo@holiday-cfo
+이거를 기반으로 holiday-cfo 플러그인을 세팅하고, 가계부를 만들어줘.
+이 폴더는 private git 저장소로 두라고 알려줘.
+원장은 KRW로 init하고, 주요 통장·신용카드를 하나씩 물어보면서 등록해줘.
+카드는 마감일·결제일까지. 끝나면 지금 현금흐름을 보여줘.
 ```
 
-가계부 폴더에 `.claude/settings.json`을 두면, 그 폴더를 열 때 플러그인 설치를 제안한다.
+**Codex** — 터미널에서 플러그인을 깐 뒤, 채팅에 나머지 말을 넣는다.
+
+```bash
+codex plugin marketplace add ssota-labs/holiday-cfo
+codex plugin install holiday-cfo
+```
+
+```
+holiday-cfo 플러그인을 기준으로 가계부를 만들어줘.
+이 폴더는 private git 저장소로 두라고 알려줘.
+원장은 KRW로 init하고, 주요 통장·신용카드를 하나씩 물어보면서 등록해줘.
+카드는 마감일·결제일까지. 끝나면 지금 현금흐름을 보여줘.
+```
+
+**Node 24+**가 필요하다. 플러그인은 스킬만 싣고, 원장 CLI는 처음 쓸 때 `npx @holiday-cfo/cli@latest`로 받는다.
+
+그다음부터는 일상 말로 충분하다.
+
+```
+어제 스타벅스에서 카드로 6500원 썼어.
+신한카드 청구주기 알려줄게 — 마감 14일, 결제 1일.
+다음 분기 현금이 빠지는 날이 언제야?
+이 카드 명세 캡쳐야. 읽어 줘.
+```
+
+<details>
+<summary>폴더에 플러그인을 미리 고정하기</summary>
+
+가계부 폴더의 `.claude/settings.json`:
 
 ```json
 {
@@ -42,42 +74,12 @@ CLI가 맡는 일:
 }
 ```
 
-### Codex
+이 폴더에서 Claude Code를 열면 설치가 뜬다. 뜬 뒤에는 위 프롬프트의 자연어 부분만 말해도 된다.
 
-```
-codex plugin marketplace add ssota-labs/holiday-cfo
-codex plugin install holiday-cfo
-```
+</details>
 
-### CLI
-
-플러그인은 스킬만 싣는다. 원장을 다루는 바이너리는 npm에 있다. **Node 24+**가 필요하다.
-
-```bash
-npx @holiday-cfo/cli@latest --help
-```
-
-아래 문서에서 `holiday <명령>`이라고 쓰면, 에이전트·터미널 모두 `npx @holiday-cfo/cli@latest <명령>`으로 읽으면 된다.
-
-## 사용 방법
-
-설치한 뒤 가계부로 쓸 폴더에서 에이전트에게 이렇게 말하면 된다.
-
-```
-이 폴더에 가계부를 만들자. private git으로 두라고 알려줘.
-KRW 원장으로 init하고, 통장·카드 계정을 잡아줘.
-```
-
-에이전트가 `holiday init`부터 계정 등록까지 이어 간다. 그다음부터는 일상 말로 충분하다.
-
-```
-어제 스타벅스에서 카드로 6500원 썼어.
-신한카드 청구주기 알려줄게 — 마감 14일, 결제 1일.
-다음 분기 현금이 빠지는 날이 언제야?
-이 카드 명세 캡쳐야. 읽어 줘.
-```
-
-터미널만 쓸 때도 같은 CLI다.
+<details>
+<summary>플러그인 없이 CLI만 쓰기</summary>
 
 ```bash
 npx @holiday-cfo/cli@latest init --currency KRW
@@ -86,7 +88,9 @@ npx @holiday-cfo/cli@latest cashflow --until 2026-10-31
 npx @holiday-cfo/cli@latest verify
 ```
 
-도움말은 `holiday --help`, `holiday <명령> --help`다. 정책·명령 스펙은 [`apps/docs`](apps/docs)에 있다.
+문서에서 `holiday <명령>`이라고 쓰면 `npx @holiday-cfo/cli@latest <명령>`과 같다. 도움말은 `holiday --help`. 정책·명령 스펙은 [`apps/docs`](apps/docs)에 있다.
+
+</details>
 
 ## 어떻게 동작하는가
 
