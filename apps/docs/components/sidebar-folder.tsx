@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type * as PageTree from 'fumadocs-core/page-tree';
 import Link from 'fumadocs-core/link';
 import { usePathname } from 'fumadocs-core/framework';
@@ -15,12 +15,13 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 /**
- * Fumadocs folder accordion that does not use Radix CollapsibleContent.
+ * Sidebar folder accordion without Radix CollapsibleContent.
  *
- * CollapsibleContent relies on CSS height animation + Presence animationend.
- * In Cursor's browser preview (and some embeds) that event never fires, so
- * aria-expanded / chevron flip but children stay visible. Render children
- * only when open instead.
+ * Two embed bugs this avoids:
+ * 1. CollapsibleContent + Presence waits for animationend (often never fires).
+ * 2. fumadocs SidebarFolder sets `defaultOpen = active || …` and re-applies it
+ *    via useOnChange. We pass `active={false}` so user collapses stick, and
+ *    open once via effect when the route enters the folder.
  */
 
 const itemClass =
@@ -41,15 +42,23 @@ function isActivePath(href: string, pathname: string) {
 function useFolderState() {
   const folder = useFolder();
   if (!folder) {
-    throw new Error('DocsSidebarFolder components must render inside SidebarFolder');
+    throw new Error('DocsSidebarFolder parts must render inside SidebarFolder');
   }
   return folder;
+}
+
+/** Open when the route enters this folder; never force-reopen on every render. */
+function OpenWhenActive({ active }: { active: boolean }) {
+  const { setOpen } = useFolderState();
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active, setOpen]);
+  return null;
 }
 
 function InstantFolderContent({ children }: { children: ReactNode }) {
   const { open } = useFolderState();
   const depth = useFolderDepth();
-
   if (!open) return null;
 
   return (
@@ -62,6 +71,30 @@ function InstantFolderContent({ children }: { children: ReactNode }) {
     >
       {children}
     </div>
+  );
+}
+
+function ToggleChevron() {
+  const { open, setOpen, collapsible } = useFolderState();
+  if (!collapsible) return null;
+
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-label={open ? 'Collapse section' : 'Expand section'}
+      className="text-fd-muted-foreground hover:bg-fd-accent/50 relative z-10 -m-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen((prev) => !prev);
+      }}
+    >
+      <ChevronDown
+        className={cn('size-4 transition-transform', !open && '-rotate-90 rtl:rotate-90')}
+        aria-hidden
+      />
+    </button>
   );
 }
 
@@ -95,19 +128,7 @@ function FolderLink({
       >
         {children}
       </Link>
-      {collapsible ? (
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={open ? 'Collapse section' : 'Expand section'}
-          className="text-fd-muted-foreground hover:bg-fd-accent/50 -m-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-          onClick={() => setOpen(!open)}
-        >
-          <ChevronDown
-            className={cn('size-4 transition-transform', !open && '-rotate-90 rtl:rotate-90')}
-          />
-        </button>
-      ) : null}
+      <ToggleChevron />
     </div>
   );
 }
@@ -130,11 +151,15 @@ function FolderTrigger({ children }: { children: ReactNode }) {
       aria-expanded={open}
       className={itemClass}
       style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-      onClick={() => setOpen(!open)}
+      onClick={(e) => {
+        e.preventDefault();
+        setOpen((prev) => !prev);
+      }}
     >
       {children}
       <ChevronDown
         className={cn('ms-auto size-4 transition-transform', !open && '-rotate-90 rtl:rotate-90')}
+        aria-hidden
       />
     </button>
   );
@@ -149,13 +174,17 @@ export function DocsSidebarFolder({
 }) {
   const path = useTreePath();
   const pathname = usePathname();
+  const active = path.includes(item);
+  const collapsible = item.collapsible !== false;
 
   return (
     <SidebarFolder
-      collapsible={item.collapsible !== false}
-      defaultOpen={item.defaultOpen}
-      active={path.includes(item)}
+      collapsible={collapsible}
+      // Initial open only. Pass active={false} so useOnChange cannot fight toggles.
+      defaultOpen={active || Boolean(item.defaultOpen)}
+      active={false}
     >
+      <OpenWhenActive active={active} />
       {item.index ? (
         <FolderLink
           href={item.index.url}
