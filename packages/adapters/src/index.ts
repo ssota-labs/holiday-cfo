@@ -52,6 +52,7 @@ function fromAppError(e: unknown): JsonResult<never> {
             ? 401
             : e.code === 'idem_key_conflict' ||
                 e.code === 'duplicate_image' ||
+                e.code === 'duplicate_source' ||
                 e.code === 'duplicate_external_ref' ||
                 e.code === 'conflict'
               ? 409

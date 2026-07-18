@@ -13,6 +13,24 @@
       "skillPath": "skills/productivity/grill-me/SKILL.md",
       "computedHash": "000514e9633b1a2df8bef98549e99b6eaf1a8c3fabfad0e3b328440b3b226c90"
     },
+    "humanize": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize/SKILL.md",
+      "computedHash": "62eaa1aaadc86296b3b1a26de8d21f1491882228d219819123a55f1084318538"
+    },
+    "humanize-korean": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize-korean/SKILL.md",
+      "computedHash": "76d0067171758e42af9e6523885c885f6648c1372887eadefd0560e4d4cc3346"
+    },
+    "humanize-redo": {
+      "source": "epoko77-ai/im-not-ai",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/humanize-redo/SKILL.md",
+      "computedHash": "d65ce525031f6e46e83d3c11303b9bf301482f2290e6056738f19189d49558e4"
+    },
     "migrate-to-vinext": {
       "source": "cloudflare/vinext",
       "sourceType": "github",

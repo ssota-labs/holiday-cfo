@@ -1,0 +1,6 @@
+{
+  "title": "ingest",
+  "pages": ["submit", "list"],
+  "collapsible": true,
+  "defaultOpen": false
+}

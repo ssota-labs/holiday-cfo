@@ -1,0 +1,38 @@
+---
+title: ingest list
+description: holiday ingest list 명령 계약
+type: reference
+summary: 수집 배치 목록. 무엇이 들어왔는지 확인.
+---
+
+<SpecVersion
+  spec="CLI"
+  version="0.1.1"
+  source="packages/cli/src/cli.ts"
+  history={[
+    {
+      version: '0.1.1',
+      date: '2026-07-18',
+      summary: 'ingest list 추가',
+      ref: 'packages/cli/src/cli.ts',
+    },
+  ]}
+/>
+
+> 이 페이지는 **latest**다.
+
+관련 기능: [ingest](/docs/features/ingest)
+
+<CommandSpec
+  command="ingest list"
+  mutates={false}
+  summary="수집 배치 목록을 본다. 동일 export 재수입 전에 확인한다."
+  signature={`holiday ingest list`}
+  flags={[]}
+  exits={[
+    { code: 0, meaning: '성공' },
+    { code: 1, meaning: '원장/도메인 거부 또는 내부 오류' },
+    { code: 2, meaning: '사용법 오류' },
+  ]}
+  example={`holiday ingest list --json`}
+/>

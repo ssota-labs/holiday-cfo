@@ -60,7 +60,7 @@ function pickMoneyLeg(
 }
 
 function postingFromLeg(
-  leg: IngestItemInput['legs'][number],
+  leg: NonNullable<IngestItemInput['legs']>[number],
   amounts: AmountFactory,
   functionalCurrency: CommodityCode,
   resolve: (code: string) => Account,
@@ -164,6 +164,13 @@ export async function submitIngest(store: LedgerStore, input: SubmitIngestInput)
     const out: IngestSubmitResponse['items'] = [];
 
     for (const item of input.submission.items) {
+      if (!item.legs) {
+        throw new AppError(
+          'usage',
+          'HTTP/MCP ingest currently requires `legs` (full double entry). ' +
+            'Statement-shaped `money` items are handled by the CLI classifier path — use `holiday ingest submit`.',
+        );
+      }
       const postings = item.legs.map((l) => postingFromLeg(l, amounts, input.functionalCurrency, resolve));
       const txn = Txn.create({
         id: nextUlid() as TxnId,

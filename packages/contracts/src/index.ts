@@ -12,6 +12,7 @@ export const ERROR_CODES = [
   'usage',
   'not_found',
   'duplicate_image',
+  'duplicate_source',
   'duplicate_external_ref',
   'unbalanced',
   'idem_key_conflict',
@@ -40,20 +41,36 @@ export const IngestLeg = z.object({
 });
 export type IngestLeg = z.infer<typeof IngestLeg>;
 
-export const IngestItemInput = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  payee: z.string().optional(),
-  narration: z.string().optional(),
-  externalRef: z.string().optional(),
-  dedupeOn: z.string().optional(),
-  legs: z.array(IngestLeg).min(2, { message: 'a transaction needs at least two legs' }),
+export const IngestMoney = z.object({
+  account: z.string(),
+  amount: z.string().regex(/^-?\d+(\.\d+)?$/, { message: 'signed decimal, same format as legs' }),
+  commodity: z.string(),
 });
+export type IngestMoney = z.infer<typeof IngestMoney>;
+
+export const IngestItemInput = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    payee: z.string().optional(),
+    narration: z.string().optional(),
+    externalRef: z.string().optional(),
+    dedupeOn: z.string().optional(),
+    legs: z.array(IngestLeg).min(2, { message: 'a transaction needs at least two legs' }).optional(),
+    /**
+     * Statement-shaped alternative to `legs`: money side only. The CLI completes
+     * double entry via rules / Uncategorized draft.
+     */
+    money: IngestMoney.optional(),
+  })
+  .refine((i) => !!i.legs !== !!i.money, {
+    message: 'each item needs exactly one of `legs` (full double entry) or `money` (statement row)',
+  });
 export type IngestItemInput = z.infer<typeof IngestItemInput>;
 
 /**
  * The contract the vision model (or fax agent) writes against.
  *
- * Items arrive as double-entry legs, not as a flat "merchant + amount".
+ * Items arrive as either full double-entry `legs` or statement-shaped `money`.
  */
 export const IngestSubmission = z.object({
   sourceSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
@@ -64,10 +81,8 @@ export type IngestSubmission = z.infer<typeof IngestSubmission>;
 
 export const IngestSubmitRequest = z.object({
   submission: IngestSubmission,
-  /** Optional raw image bytes hashed by the usecase when sourceSha256 is absent. */
   imageSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   idemKey: z.string().min(1).optional(),
-  /** Canonical JSON of the submission used for idempotency request hashing. */
   requestJson: z.string().optional(),
 });
 export type IngestSubmitRequest = z.infer<typeof IngestSubmitRequest>;
@@ -75,8 +90,10 @@ export type IngestSubmitRequest = z.infer<typeof IngestSubmitRequest>;
 export const IngestItemResult = z.object({
   itemId: z.string(),
   txnId: z.string(),
-  status: z.literal('pending'),
+  status: z.enum(['pending', 'posted']),
   warnings: z.array(z.string()),
+  category: z.string().optional(),
+  matchedRuleId: z.string().nullable().optional(),
 });
 export type IngestItemResult = z.infer<typeof IngestItemResult>;
 
@@ -105,6 +122,7 @@ export type ReviewListResponse = z.infer<typeof ReviewListResponse>;
 export const ReviewAcceptRequest = z.object({
   id: z.string().min(1),
   idemKey: z.string().min(1).optional(),
+  category: z.string().optional(),
 });
 export type ReviewAcceptRequest = z.infer<typeof ReviewAcceptRequest>;
 
