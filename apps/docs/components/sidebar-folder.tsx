@@ -5,20 +5,16 @@ import type * as PageTree from 'fumadocs-core/page-tree';
 import Link from 'fumadocs-core/link';
 import { usePathname } from 'fumadocs-core/framework';
 import { useTreePath } from 'fumadocs-ui/contexts/tree';
-import {
-  SidebarFolder,
-  useFolder,
-  useFolderDepth,
-} from 'fumadocs-ui/components/sidebar/base';
+import { SidebarFolder, useFolderDepth } from 'fumadocs-ui/components/sidebar/base';
 import { ArrowUpRight, ChevronDown } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 
 /**
- * Sidebar folder accordion without Radix CollapsibleContent.
+ * Native sidebar folder accordion.
  *
- * Folder title is a toggle button (not a link) so clicks collapse/expand
- * instead of navigating. A separate arrow icon links to the folder index.
+ * `<details>/<summary>` owns the toggle, so browser-preview event interception
+ * cannot break React state updates. The title toggles; the arrow is the link.
  */
 
 const itemClass =
@@ -36,31 +32,8 @@ function isActivePath(href: string, pathname: string) {
   return normalize(href) === normalize(pathname);
 }
 
-function useFolderState() {
-  const folder = useFolder();
-  if (!folder) {
-    throw new Error('DocsSidebarFolder parts must render inside SidebarFolder');
-  }
-  return folder;
-}
-
-/** Open only when the route newly enters this folder. */
-function OpenWhenActive({ active }: { active: boolean }) {
-  const { setOpen } = useFolderState();
-  const wasActive = useRef(active);
-
-  useEffect(() => {
-    if (active && !wasActive.current) setOpen(true);
-    wasActive.current = active;
-  }, [active, setOpen]);
-
-  return null;
-}
-
-function InstantFolderContent({ children }: { children: ReactNode }) {
-  const { open } = useFolderState();
+function FolderContent({ children }: { children: ReactNode }) {
   const depth = useFolderDepth();
-  if (!open) return null;
 
   return (
     <div
@@ -75,95 +48,109 @@ function InstantFolderContent({ children }: { children: ReactNode }) {
   );
 }
 
-function FolderLink({
+function NativeFolder({
+  item,
   href,
   active,
   external,
   label,
+  folderChildren,
   children,
 }: {
+  item: PageTree.Folder;
   href: string;
   active: boolean;
   external?: boolean;
   label: string;
+  folderChildren: ReactNode;
   children: ReactNode;
 }) {
-  const { open, setOpen, collapsible } = useFolderState();
   const depth = useFolderDepth();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const wasActive = useRef(active);
+  const initiallyOpen = useRef(active || Boolean(item.defaultOpen));
+
+  useEffect(() => {
+    if (detailsRef.current) detailsRef.current.open = initiallyOpen.current;
+  }, []);
+
+  useEffect(() => {
+    if (active && !wasActive.current && detailsRef.current) {
+      detailsRef.current.open = true;
+    }
+    wasActive.current = active;
+  }, [active]);
 
   return (
-    <div
-      className={cn(itemClass, active && 'bg-fd-primary/10 text-fd-primary')}
-      style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-      data-active={active}
-    >
-      {/* Title = accordion toggle only. Not a link. */}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={open ? `${label} 접기` : `${label} 펼치기`}
-        title={open ? '접기' : '펼치기'}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        disabled={!collapsible}
-        onClick={() => {
-          if (collapsible) setOpen((prev) => !prev);
-        }}
+    <details ref={detailsRef} className="group/sidebar-folder">
+      <summary
+        className={cn(
+          itemClass,
+          'cursor-pointer list-none [&::-webkit-details-marker]:hidden',
+          active && 'bg-fd-primary/10 text-fd-primary',
+        )}
+        style={{ paddingInlineStart: getItemOffset(depth - 1) }}
+        data-active={active}
+        title={`${label} 접기/펼치기`}
       >
-        {children}
-        {collapsible ? (
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {children}
           <ChevronDown
-            className={cn(
-              'text-fd-muted-foreground ms-auto size-4 shrink-0 transition-transform',
-              !open && '-rotate-90 rtl:rotate-90',
-            )}
+            className="text-fd-muted-foreground ms-auto size-4 shrink-0 -rotate-90 transition-transform group-open/sidebar-folder:rotate-0 rtl:rotate-90 rtl:group-open/sidebar-folder:rotate-0"
             aria-hidden
           />
-        ) : null}
-      </button>
-
-      {/* Separate control to open the folder index page. */}
-      <Link
-        href={href}
-        external={external}
-        title={`${label} 페이지로 이동`}
-        aria-label={`${label} 페이지로 이동`}
-        className="text-fd-muted-foreground hover:bg-fd-accent/80 hover:text-fd-accent-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ArrowUpRight className="size-3.5" aria-hidden />
-      </Link>
-    </div>
+        </span>
+        <Link
+          href={href}
+          external={external}
+          title={`${label} 페이지로 이동`}
+          aria-label={`${label} 페이지로 이동`}
+          className="text-fd-muted-foreground hover:bg-fd-accent/80 hover:text-fd-accent-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-md"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <ArrowUpRight className="size-3.5" aria-hidden />
+        </Link>
+      </summary>
+      <FolderContent>{folderChildren}</FolderContent>
+    </details>
   );
 }
 
-function FolderTrigger({ label, children }: { label: string; children: ReactNode }) {
-  const { open, setOpen, collapsible } = useFolderState();
+function NativeFolderWithoutIndex({
+  item,
+  active,
+  label,
+  children,
+}: {
+  item: PageTree.Folder;
+  active: boolean;
+  label: string;
+  children: ReactNode;
+}) {
   const depth = useFolderDepth();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const initiallyOpen = useRef(active || Boolean(item.defaultOpen));
 
-  if (!collapsible) {
-    return (
-      <div className={itemClass} style={{ paddingInlineStart: getItemOffset(depth - 1) }}>
-        {children}
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (detailsRef.current) detailsRef.current.open = initiallyOpen.current;
+  }, []);
 
   return (
-    <button
-      type="button"
-      aria-expanded={open}
-      aria-label={open ? `${label} 접기` : `${label} 펼치기`}
-      title={open ? '접기' : '펼치기'}
-      className={itemClass}
-      style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-      onClick={() => setOpen((prev) => !prev)}
-    >
-      {children}
-      <ChevronDown
-        className={cn('ms-auto size-4 transition-transform', !open && '-rotate-90 rtl:rotate-90')}
-        aria-hidden
-      />
-    </button>
+    <details ref={detailsRef} className="group/sidebar-folder">
+      <summary
+        className={cn(itemClass, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}
+        style={{ paddingInlineStart: getItemOffset(depth - 1) }}
+        title={`${label} 접기/펼치기`}
+      >
+        {item.icon}
+        {item.name}
+        <ChevronDown
+          className="ms-auto size-4 -rotate-90 transition-transform group-open/sidebar-folder:rotate-0 rtl:rotate-90 rtl:group-open/sidebar-folder:rotate-0"
+          aria-hidden
+        />
+      </summary>
+      <FolderContent>{children}</FolderContent>
+    </details>
   );
 }
 
@@ -182,33 +169,30 @@ export function DocsSidebarFolder({
   const path = useTreePath();
   const pathname = usePathname();
   const active = path.includes(item);
-  const collapsible = item.collapsible !== false;
   const label = folderLabel(item.name);
 
   return (
     <SidebarFolder
-      collapsible={collapsible}
-      defaultOpen={active || Boolean(item.defaultOpen)}
+      collapsible={false}
       active={false}
     >
-      <OpenWhenActive active={active} />
       {item.index ? (
-        <FolderLink
+        <NativeFolder
+          item={item}
           href={item.index.url}
           active={isActivePath(item.index.url, pathname)}
           external={item.index.external}
           label={label}
+          folderChildren={children}
         >
           {item.icon}
           {item.name}
-        </FolderLink>
+        </NativeFolder>
       ) : (
-        <FolderTrigger label={label}>
-          {item.icon}
-          {item.name}
-        </FolderTrigger>
+        <NativeFolderWithoutIndex item={item} active={active} label={label}>
+          {children}
+        </NativeFolderWithoutIndex>
       )}
-      <InstantFolderContent>{children}</InstantFolderContent>
     </SidebarFolder>
   );
 }
