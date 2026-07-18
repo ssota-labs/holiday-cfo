@@ -1,0 +1,10 @@
+{
+  "extends": "@holiday-cfo/typescript-config/react-library.json",
+  "compilerOptions": {
+    "paths": {
+      "@holiday-cfo/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}

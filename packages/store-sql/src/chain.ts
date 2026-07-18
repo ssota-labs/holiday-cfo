@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { ValidatedTxn } from '@holiday/core';
+import type { ValidatedTxn } from '@holiday-cfo/core';
 
 /**
  * The audit hash chain.

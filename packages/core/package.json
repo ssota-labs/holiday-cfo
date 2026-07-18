@@ -1,6 +1,6 @@
 {
-  "name": "@holiday/core",
-  "version": "0.1.0",
+  "name": "@holiday-cfo/core",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -8,7 +8,9 @@
     "./domain": "./dist/domain/index.js",
     "./ports": "./dist/ports/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -16,5 +18,13 @@
   },
   "dependencies": {
     "zod": "^3.24.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssota-labs/holiday-cfo.git",
+    "directory": "packages/core"
   }
 }

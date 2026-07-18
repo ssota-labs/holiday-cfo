@@ -1,5 +1,5 @@
-import type { CommodityCode, Grain } from '@holiday/core';
-import { type SqlEngine, SqlLedgerStore } from '@holiday/store-sql';
+import type { CommodityCode, Grain } from '@holiday-cfo/core';
+import { type SqlEngine, SqlLedgerStore } from '@holiday-cfo/store-sql';
 
 import { SqliteDriver } from './driver.js';
 import { MIGRATIONS } from './migrations.generated.js';
@@ -9,7 +9,7 @@ import { PRAGMAS, SCHEMA_VERSION } from './schema.js';
  * The SQLite engine: a driver, the DDL, and the two things that are genuinely
  * SQLite's own — pragmas and the WAL checkpoint.
  *
- * The ~1,500 lines that used to be in this file are now in @holiday/store-sql,
+ * The ~1,500 lines that used to be in this file are now in @holiday-cfo/store-sql,
  * because a count said they should be: exactly eight were dialect-specific. The
  * alternative on the table was copying them for Postgres, which produces two
  * files that agree today and drift on the first hand-edit that lands in one and

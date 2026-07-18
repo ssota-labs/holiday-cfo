@@ -2,7 +2,10 @@
 title: 현금흐름
 description: 런웨이와 SHORT
 type: guide
-summary: cash 계정 opening + 스케줄 투영. 음수면 SHORT.
+summary: cash 계정 opening + 스케줄 투영. --spend/--receive 가정. 음수면 SHORT.
+related:
+  - /docs/design/adr
+  - /docs/planning/stories/us-cashflow-short
 ---
 
 제품의 payoff 명령. 카드·할부·정기·대출 출금을 날짜별로 쌓아 잔액을 본다.
@@ -13,6 +16,30 @@ summary: cash 계정 opening + 스케줄 투영. 음수면 SHORT.
 2. POLICY-003/004/005/008/010을 지킨 투영
 3. balanceAfter가 음수면 SHORT
 4. reads-only (원장 불변)
+5. `--spend` / `--receive`는 원장을 건드리지 않는 가정 유출·유입
+
+## 네 스케줄 → 런웨이
+
+| | 모양 | 계정 |
+|---|---|---|
+| **카드 청구주기** | 회전 — 사용기간이 닫히고 결제일에 전액 | `Liabilities:Card:*` |
+| **할부** | 고정 N개월 분할 | `Liabilities:Card:*:Installment` (별도) |
+| **대출** | 분할상환 (원금+이자) | `Liabilities:Loans:*` |
+| **정기지출** | 반복 발생 | 계정 아님 (스케줄 테이블) |
+
+스케줄에서 원장으로 가는 화살표는 없다. 예측은 전기되지 않는다.
+
+현금이 뭔지는 `account.cash` 플래그가 정한다 — prefix가 아니다 ([ADR-004](/docs/design/adr#ADR-004)).
+
+## What-if
+
+```bash
+holiday cashflow --until 2027-06-30 \
+  --spend "2026-09-01 5000000 새 노트북" \
+  --receive "2026-12-25 3000000 보너스"
+```
+
+원장은 그대로다. `--spend` 없이 다시 돌리면 가정이 사라진다.
 
 ## 스펙
 

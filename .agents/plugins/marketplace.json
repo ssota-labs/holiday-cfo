@@ -1,0 +1,17 @@
+{
+  "name": "holiday-cfo",
+  "interface": {
+    "displayName": "holiday-cfo",
+    "shortDescription": "A double-entry CFO ledger for one person, driven from a Codex session."
+  },
+  "plugins": [
+    {
+      "name": "holiday-cfo",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "category": "Development"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "root": "dashboard",
+  "elements": {
+    "dashboard": {
+      "type": "Dashboard",
+      "props": { "title": "가계부" },
+      "children": ["health", "runway", "balances"]
+    },
+    "health": { "type": "LedgerHealth", "props": {} },
+    "runway": { "type": "CashRunway", "props": {} },
+    "balances": { "type": "BalanceTable", "props": { "account": "Assets" } }
+  }
+}

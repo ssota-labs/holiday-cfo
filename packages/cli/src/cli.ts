@@ -1,7 +1,18 @@
 // Loaded dynamically by main.ts, AFTER env.ts has patched process.emitWarning.
 // Do not make this the bin entry point — see the comment in main.ts.
+import { existsSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
+
 import { Command } from 'commander';
 import { z } from 'zod';
+
+// Read the CLI version from package.json rather than hard-coding it. It is not
+// cosmetic: `holiday dash init` pins the blocks packages to THIS version, so a
+// stale literal here would scaffold a dashboard against an OLD catalog. Resolved
+// at runtime relative to the built file (dist/main.js → ../package.json), which
+// holds in the npm tarball too (package.json sits at its root).
+const VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 
 import {
   type Account,
@@ -11,12 +22,11 @@ import {
   type CommodityCode,
   type Grain,
   type IsoDate,
-  type ProjectedOutflow,
-  type ProjectionPosting,
   Txn,
   buildInstallmentSchedule,
-  projectInstallments,
-  projectRecurring,
+  projectCashflow,
+  type CashflowAssumption,
+  addMonthsIso,
   assertCadence,
   describeCadence,
   type TxnId,
@@ -27,11 +37,9 @@ import {
   assertCardCycleRule,
   assertIsoDate,
   billingDatesFor,
-  cashRunway,
   createUlidFactory,
   describeTxnError,
   displaySignOf,
-  projectCardBills,
   reviseSchedule,
   type AmortizationMethod,
   type LoanScheduleRow,
@@ -42,7 +50,6 @@ import {
   monthlyFromAnnual,
   parseAnnualPercent,
   rowForDate,
-  projectLoans,
   type ExistingTxn,
   type ParsedTxn,
   type AssertionCheck,
@@ -59,8 +66,9 @@ import {
   sha256,
   sha256Bytes,
   scheduleInterest,
-} from '@holiday/core';
+} from '@holiday-cfo/core';
 
+import { bakeDatasets, scaffold } from './dash.js';
 import { INGEST_SUBMISSION, type IngestItemInput } from './ingest.js';
 import { type DeriveWeight, UsageError, parseLeg } from './legs.js';
 import { createWorkspace, openLedger, readConfig, requireWorkspace } from './workspace.js';
@@ -86,7 +94,7 @@ const registry = CommodityRegistry.from(WELL_KNOWN_COMMODITIES);
 const amounts = new AmountFactory(registry);
 
 const program = new Command();
-program.name('holiday').description('A double-entry CFO ledger for one person.').version('0.1.0');
+program.name('holiday').description('A double-entry CFO ledger for one person.').version(VERSION);
 
 program
   .command('init')
@@ -975,35 +983,61 @@ const ingest = program.command('ingest').description('캡쳐에서 읽은 거래
 
 ingest
   .command('submit')
-  .description('record parsed transactions as DRAFTS for review. Never does OCR — you are the parser.')
+  .description('record parsed transactions. Drafts for review by default; --post commits them directly. Never does OCR — you are the parser.')
   // NOT --json: that is the global machine-output flag, and commander resolves
   // one of them while silently ignoring the other. Made this mistake twice.
-  .requiredOption('--data <submission>', 'see the schema in src/ingest.ts. Legs, not a flat amount.')
-  .option('--image <path>', 'the screenshot, so the same file cannot be ingested twice')
+  .option('--data <submission>', 'submission JSON inline. See the schema in src/ingest.ts. Legs, not a flat amount.')
+  // argv has a hard size limit (~1MB on macOS), which is exactly why the first
+  // real-world import got chunked into nine batches — and chunking broke the
+  // one-source-file-one-batch mapping that provenance depends on. A file has no
+  // such limit: one bank export = one submission = one batch row.
+  .option('--data-file <path>', 'read the submission JSON from a file — required for large imports')
+  // Generalized from --image: ANY source file (bank HTML/CSV export, screenshot)
+  // gets hashed into the batch record. Identical bytes are the same export, so a
+  // re-import of the same file is BLOCKED by the ledger itself — provenance the
+  // next session can rely on instead of hoping nobody imports twice.
+  .option('--source <path>', 'the source file this submission was parsed from (hashed; re-import of identical bytes is refused)')
+  .option('--image <path>', 'alias of --source, kept for screenshots')
   .option('--idem-key <key>', 'retry-safe. Same key + same request replays the stored result.')
-  .action(async (o: { data: string; image?: string; idemKey?: string }) => {
+  // The whole batch is one unit of work, so this is the fast path for a large
+  // history import: thousands of rows post in one process (one node start, one
+  // transaction) in seconds, instead of thousands of `txn add` calls each paying
+  // ~30ms of process startup. Skips the review queue on purpose — for a trusted
+  // bulk import the statement balance (`assert`) is the real check, not per-row
+  // human review.
+  .option('--post', 'commit directly as posted, skipping the review queue', false)
+  .action(async (o: { data?: string; dataFile?: string; source?: string; image?: string; idemKey?: string; post: boolean }) => {
     const ws = requireWorkspace();
     const config = readConfig(ws);
+
+    if (!o.data === !o.dataFile) {
+      throw new UsageError('pass exactly one of --data (inline JSON) or --data-file (path to JSON).');
+    }
+    const rawData = o.dataFile ? await (await import('node:fs/promises')).readFile(o.dataFile, 'utf8') : o.data!;
+
     const store = await openLedger(ws);
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(o.data);
+      parsed = JSON.parse(rawData);
     } catch (e) {
-      throw new UsageError(`--data is not valid JSON: ${(e as Error).message}`);
+      throw new UsageError(`the submission is not valid JSON: ${(e as Error).message}`);
     }
     const submission = INGEST_SUBMISSION.parse(parsed);
 
-    // Hash the image ourselves when we can see it. This is the one duplicate
-    // check that can block without ever being wrong: identical bytes are the
-    // same screenshot.
+    // Hash the source file ourselves when we can see it. This is the one
+    // duplicate check that can block without ever being wrong: identical bytes
+    // are the same export. It is also the provenance record — the batch row keeps
+    // the hash and the file name, so a later session can see exactly which
+    // exports are already in (`holiday ingest list`) instead of re-deriving it.
+    const sourcePath = o.source ?? o.image ?? null;
     let sourceSha = submission.sourceSha256 ?? null;
-    if (o.image) {
+    if (sourcePath) {
       const { readFile } = await import('node:fs/promises');
-      sourceSha = await sha256Bytes(new Uint8Array(await readFile(o.image)));
+      sourceSha = await sha256Bytes(new Uint8Array(await readFile(sourcePath)));
     }
 
-    const requestSha = await sha256(o.data);
+    const requestSha = await sha256(rawData);
     const replay = o.idemKey ? await store.read((r) => r.getCommandResult(o.idemKey!)) : null;
     if (replay) {
       // An agent shelling out to a CLI WILL retry on timeout. Double-posting is
@@ -1024,9 +1058,10 @@ ingest
         const seen = await uow.findIngestBatchBySha(sourceSha);
         if (seen) {
           throw new LedgerError(
-            'duplicate_image',
-            `this exact image was already ingested on ${seen.submittedAt} (${seen.itemCount} item(s)). ` +
-              `Dropping the same file twice is always a mistake.`,
+            'duplicate_source',
+            `this exact file was already ingested on ${seen.submittedAt}` +
+              `${seen.sourceName ? ` as "${seen.sourceName}"` : ''} (${seen.itemCount} item(s)). ` +
+              `Importing the same export twice is always a mistake — run \`holiday ingest list\` to see what is in.`,
           );
         }
       }
@@ -1058,7 +1093,7 @@ ingest
       await uow.recordIngestBatch({
         id: batchId,
         sourceSha256: sourceSha ?? `no-image:${batchId}`,
-        sourceName: submission.sourceName ?? (o.image ? o.image.split('/').at(-1)! : null),
+        sourceName: submission.sourceName ?? (sourcePath ? sourcePath.split('/').at(-1)! : null),
         submittedAt: nowIso(),
         itemCount: submission.items.length,
       });
@@ -1125,7 +1160,11 @@ ingest
           );
         }
 
-        await uow.appendTxn(txn.value, { status: 'draft' });
+        // --post commits straight to posted; the ingest item is 'accepted' up
+        // front, mirroring exactly what `review accept` would do one row at a time.
+        const txnStatus = o.post ? 'posted' : 'draft';
+        const itemStatus = o.post ? 'accepted' : 'pending';
+        await uow.appendTxn(txn.value, { status: txnStatus });
         const itemId = nextUlid();
         await uow.recordIngestItem({
           id: itemId,
@@ -1135,13 +1174,13 @@ ingest
           externalRef: item.externalRef ?? null,
           merchant: item.payee ?? null,
           txnId: txn.value.id,
-          status: 'pending',
+          status: itemStatus,
           reason: null,
           // Verbatim, so a misread has an audit trail.
           parsedJson: JSON.stringify(item),
           createdAt: nowIso(),
         });
-        out.push({ itemId, txnId: txn.value.id, status: 'pending', warnings });
+        out.push({ itemId, txnId: txn.value.id, status: itemStatus, warnings });
       }
       return { batchId, items: out };
     });
@@ -1160,9 +1199,35 @@ ingest
     await store.close();
 
     out(result);
-    note(`${result.items.length}건을 DRAFT로 기록했습니다. 잔액·리포트에서 제외됩니다.`);
+    if (o.post) {
+      note(`${result.items.length}건을 POSTED로 기록했습니다. 잔액에 바로 반영됩니다.`);
+    } else {
+      note(`${result.items.length}건을 DRAFT로 기록했습니다. 잔액·리포트에서 제외됩니다.`);
+    }
     for (const i of result.items) for (const w of i.warnings) note(`  ⚠ ${w}`);
-    note(`검토: \`holiday review list\` → \`holiday review accept <id>\``);
+    if (!o.post) note(`검토: \`holiday review list\` → \`holiday review accept <id>\``);
+  });
+
+ingest
+  .command('list')
+  .description('every import that ever ran — which source files, when, how many rows')
+  .action(async () => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const batches = await store.read((r) => r.listIngestBatches());
+    await store.close();
+
+    if (jsonMode()) return out(batches);
+    if (batches.length === 0) {
+      note('임포트 이력이 없습니다.');
+      return;
+    }
+    // The provenance record. A fresh session reads this BEFORE importing, so the
+    // same export is never parsed and posted twice.
+    for (const b of batches) {
+      const src = b.sourceName ?? (b.sourceSha256.startsWith('no-image:') ? '(source not recorded)' : b.sourceSha256.slice(0, 12));
+      note(`${b.submittedAt}  ${String(b.itemCount).padStart(6)} item(s)  ${src}`);
+    }
   });
 
 const review = program.command('review').description('드래프트 검토 — 승인 전엔 장부가 아니다');
@@ -1526,118 +1591,82 @@ loan
     note(`${result.seq}회차 ${money(result.paid)} = 원금 ${money(result.principal)} + 이자 ${money(result.interest)}`);
   });
 
+/**
+ * Parse one `--spend`/`--receive` spec: "DATE AMOUNT LABEL".
+ *
+ * AMOUNT is a plain count of minor units in the book currency — 5000000 is
+ * ₩5,000,000 in a KRW book — entered POSITIVE; the sign comes from which flag was
+ * used, so the user never types a minus. Commas are allowed for readability.
+ */
+function parseAssume(spec: string, sign: bigint): CashflowAssumption {
+  const m = /^\s*(\d{4}-\d{2}-\d{2})\s+([\d,]+)\s+(.+?)\s*$/.exec(spec);
+  if (!m) {
+    throw new UsageError(`--spend/--receive want "DATE AMOUNT LABEL", got ${JSON.stringify(spec)}`);
+  }
+  const [, date, amount, label] = m;
+  const minor = BigInt(amount!.replace(/,/g, ''));
+  if (minor <= 0n) throw new UsageError(`amount must be positive (the flag sets direction): ${JSON.stringify(spec)}`);
+  return { date: assertIsoDate(date!), changeMinor: minor * sign, label: label! };
+}
+
+/** Commander collector for a repeatable option. */
+function collectAssume(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
 program
   .command('cashflow')
   .description('will the cash survive the card bills that are already coming')
   .option('--until <date>', 'projection horizon', addMonthsIso(today(), 3))
-  .action(async (o: { until: string }) => {
+  // What-if, folded into the same runway. Nothing is written — a purchase you are
+  // weighing, a bonus you expect. `--spend` leaves cash, `--receive` brings it in,
+  // so the user never guesses a sign. Repeatable: stack several to see them all at
+  // once. Format: "DATE AMOUNT LABEL", e.g. --spend "2026-09-01 5000000 새 노트북".
+  .option('--spend <spec>', 'hypothetical outflow "DATE AMOUNT LABEL" (repeatable)', collectAssume, [])
+  .option('--receive <spec>', 'hypothetical inflow "DATE AMOUNT LABEL" (repeatable)', collectAssume, [])
+  .action(async (o: { until: string; spend: string[]; receive: string[] }) => {
     const ws = requireWorkspace();
     const config = readConfig(ws);
     const store = await openLedger(ws);
 
     const now = assertIsoDate(today());
     const until = assertIsoDate(o.until);
+    // spend is money leaving (negative change), receive is money arriving.
+    const assume = [
+      ...o.spend.map((s) => parseAssume(s, -1n)),
+      ...o.receive.map((s) => parseAssume(s, 1n)),
+    ];
 
-    const result = await store.read(async (r) => {
-      const accounts = await r.listAccounts();
-      const byId = new Map(accounts.map((a) => [a.id, a]));
-      const cards = (await r.listCards()).map((c) => ({
-        accountId: c.accountId,
-        accountCode: byId.get(c.accountId)!.code,
-        fundingAccountId: c.fundingAccountId,
-        rule: c.rule,
-        label: c.label,
-      }));
-
-      // The historical half of a cash flow statement is a QUERY, never a
-      // maintained table — that is what stops it drifting from the ledger.
-      const cashIds = new Set(accounts.filter((a) => a.cash).map((a) => a.id));
-      const balances = await r.getBalances({ asOf: now });
-      const openingCash = balances
-        .filter((b) => cashIds.has(b.accountId))
-        .reduce((s, b) => s + b.weightMinor, 0n);
-      // An asset account nobody marked as cash is either deliberate or an
-      // oversight, and only the user knows which. Saying nothing makes the
-      // oversight invisible.
-      const unmarked = accounts.filter((a) => a.type === 'asset' && !a.cash && !a.placeholder && !a.closedOn);
-
-      const postings: ProjectionPosting[] = [];
-      for await (const p of r.streamPostings({ from: addMonthsIso(today(), -4) as IsoDate })) {
-        postings.push({
-          txnId: p.txnId,
-          txnDate: p.txnDate,
-          accountId: p.accountId,
-          weightMinor: p.weightMinor,
-          commodity: p.commodity,
-        });
-      }
-
-      // Installments are NOT derived from postings: their postings all sit on the
-      // purchase date, and only the schedule knows a twelfth moves each month.
-      const installments = (await r.listInstallments({ activeOn: now })).map((i) => ({
-        id: i.plan.id,
-        cardAccountId: i.plan.cardAccountId,
-        liabilityAccountId: i.plan.liabilityAccountId,
-        label: i.plan.label,
-        months: i.plan.months,
-        rows: i.rows,
-      }));
-      const recurring = await r.listRecurring({ activeOn: now });
-      const loans = (await r.listLoans()).map((l) => ({
-        accountId: l.loan.accountId,
-        fundingAccountId: l.loan.fundingAccountId,
-        label: l.loan.label,
-        termMonths: l.loan.termMonths,
-        rows: l.rows,
-      }));
-      return { cards, openingCash, postings, installments, recurring, unmarked, loans };
-    });
+    const proj = await store.read((r) => projectCashflow(r, { asOf: now, until, assume }));
     await store.close();
 
-    const fundingByCard = new Map(result.cards.map((c) => [c.accountId, c.fundingAccountId]));
-    const cardRules = new Map(
-      result.cards.map((c) => [c.accountId, { rule: c.rule, fundingAccountId: c.fundingAccountId }]),
-    );
-    const orphaned = result.installments.filter((i) => !fundingByCard.has(i.cardAccountId));
-
-    const bills = projectCardBills({ cards: result.cards, postings: result.postings, today: now, until });
-    const instRows = projectInstallments({ installments: result.installments, fundingByCard, today: now, until });
-    const recRows = projectRecurring({ recurring: result.recurring, cardRules, today: now, until });
-    const loanRows = projectLoans({ loans: result.loans, today: now, until });
-    const runway = cashRunway<ProjectedOutflow>(result.openingCash, [
-      ...bills,
-      ...instRows,
-      ...recRows,
-      ...loanRows,
-    ]);
+    const { runway } = proj;
 
     if (jsonMode()) {
+      // i64 amounts serialise as decimal STRINGS: JSON has no i64, and
+      // Number("9007199254740993") silently gives ...992. Whatever reads this —
+      // the dashboard bake included — must not parse them back into numbers.
       return out({
-        openingCashMinor: result.openingCash.toString(),
-        commodity: config.functionalCurrency,
+        asOf: proj.asOf,
+        until: proj.until,
+        openingCashMinor: proj.openingCashMinor.toString(),
+        commodity: proj.commodity,
         runway: runway.map((p) => ({
           date: p.date,
           outflowMinor: p.outflowMinor.toString(),
           balanceAfterMinor: p.balanceAfterMinor.toString(),
-          items: p.items.map((b) => ({
-            kind: b.kind ?? 'card',
-            label: describeOutflow(b),
-            amountMinor: b.amountMinor.toString(),
-          })),
+          items: p.items.map((b) => ({ kind: b.kind, label: b.label, amountMinor: b.amountMinor.toString() })),
         })),
+        // Shipped in the JSON, not just printed: a projection that quietly omits
+        // an outflow reads as reassurance when it should read as "I don't know",
+        // and that is just as true on a dashboard as in a terminal.
+        gaps: proj.gaps,
       });
     }
 
-    const money = (m: bigint) => amounts.format({ minor: m, commodity: config.functionalCurrency });
-    // Never let coverage shrink silently: a projection that quietly omits an
-    // outflow reads as reassurance when it should read as "I don't know".
-    for (const o of orphaned) {
-      note(`⚠ installment "${o.label ?? o.id}" is on a card with no billing cycle and is NOT in this projection.`);
-    }
-    for (const a of result.unmarked) {
-      note(`⚠ ${a.code} is not marked --cash and is NOT counted as cash on hand.`);
-    }
-    note(`cash on hand (${now}):  ${money(result.openingCash)} ${config.functionalCurrency}`);
+    const money = (m: bigint) => amounts.format({ minor: m, commodity: proj.commodity });
+    for (const g of proj.gaps) note(`⚠ ${g.subject} ${g.detail}.`);
+    note(`cash on hand (${now}):  ${money(proj.openingCashMinor)} ${proj.commodity}`);
     if (runway.length === 0) {
       note(`no card bills projected through ${until}.`);
       return;
@@ -1645,17 +1674,21 @@ program
     note('');
     for (const p of runway) {
       const short = p.balanceAfterMinor < 0n;
-      note(`${p.date}   -${money(p.outflowMinor).padStart(12)}   →  ${money(p.balanceAfterMinor).padStart(12)}${short ? '   ⚠ SHORT' : ''}`);
+      // A day's net can be an inflow now that --receive exists: a negative outflow
+      // is money arriving, so show it as +, not as a double-negative "- -3,000,000".
+      const net = p.outflowMinor >= 0n ? `-${money(p.outflowMinor)}` : `+${money(-p.outflowMinor)}`;
+      note(`${p.date}   ${net.padStart(13)}   →  ${money(p.balanceAfterMinor).padStart(12)}${short ? '   ⚠ SHORT' : ''}`);
       for (const b of p.items) {
-        note(`             ${describeOutflow(b).padEnd(30)} ${money(b.amountMinor).padStart(12)}`);
+        const line = b.amountMinor >= 0n ? `-${money(b.amountMinor)}` : `+${money(-b.amountMinor)}`;
+        note(`             ${b.label.padEnd(30)} ${line.padStart(13)}`);
       }
     }
     const worst = runway.reduce((a, b) => (b.balanceAfterMinor < a.balanceAfterMinor ? b : a));
     note('');
     if (worst.balanceAfterMinor < 0n) {
-      note(`⚠ Short by ${money(-worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+      note(`⚠ Short by ${money(-worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
     } else {
-      note(`Lowest point: ${money(worst.balanceAfterMinor)} ${config.functionalCurrency} on ${worst.date}.`);
+      note(`Lowest point: ${money(worst.balanceAfterMinor)} ${proj.commodity} on ${worst.date}.`);
     }
   });
 
@@ -1733,25 +1766,6 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function describeOutflow(b: ProjectedOutflow): string {
-  if (b.kind === 'loan') return `${b.label ?? '대출'} (${b.seq}/${b.termMonths})`;
-  if (b.kind === 'installment') return `${b.label ?? '할부'} (${b.seq}/${b.months})`;
-  if (b.kind === 'recurring') {
-    // Show the charge date when a card sits in between, since "why is this here"
-    // is otherwise unanswerable: the money is leaving weeks after the charge.
-    return b.viaCardAccountId ? `${b.label} (${b.occurredOn} 결제분)` : b.label;
-  }
-  return `${b.cardLabel ?? b.cardCode}  ${b.cycleFrom}..${b.cycleTo}`;
-}
-
-function addMonthsIso(date: string, delta: number): string {
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  const zero = m - 1 + delta;
-  const ny = y + Math.floor(zero / 12);
-  const nm = (((zero % 12) + 12) % 12) + 1;
-  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
-  return `${String(ny).padStart(4, '0')}-${String(nm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
-}
 
 program
   .command('verify')
@@ -1784,6 +1798,71 @@ program
     await store.close();
     note('WAL checkpointed. ledger.db is safe to commit.');
   });
+
+const dash = program.command('dash').description('대시보드 — 원장의 스냅샷을 굽고, 에이전트가 화면을 고른다');
+
+dash
+  .command('init')
+  .description('scaffold a vinext dashboard next to the ledger')
+  .option('--dir <path>', 'where to write it', 'dash')
+  .action(async (o: { dir: string }) => {
+    const ws = requireWorkspace();
+    const dest = resolve(process.cwd(), o.dir);
+    // The blocks are pinned to THIS CLI's version — see scaffold(). A dashboard
+    // and the vocabulary it is written in are one release.
+    const { created, skipped } = scaffold(dest, VERSION);
+
+    // Bake immediately. A scaffold whose first `pnpm dev` shows an empty page
+    // teaches the agent that the dashboard is broken, and it starts inventing
+    // fixes — usually by typing figures into spec.json, which is the one thing
+    // this design exists to prevent.
+    const store = await openLedger(ws);
+    const data = await bakeDatasets(store, {
+      asOf: assertIsoDate(today()),
+      until: assertIsoDate(addMonthsIso(today(), 3)),
+      now: () => new Date().toISOString(),
+    });
+    await store.close();
+    writeFileSync(join(dest, 'src', 'data', 'ledger.json'), `${JSON.stringify(data, null, 2)}\n`);
+
+    out({ dir: dest, created, skipped });
+    note(`Dashboard scaffolded at ${dest}`);
+    if (skipped.length > 0) note(`Kept your existing: ${skipped.join(', ')}`);
+    note(`  cd ${o.dir} && pnpm install && pnpm dev`);
+    note(`Edit src/data/spec.json to choose the layout. Never edit ledger.json — run \`holiday dash data\`.`);
+  });
+
+dash
+  .command('data')
+  .description('re-bake the snapshot the dashboard renders')
+  .option('--dir <path>', 'the dashboard directory', 'dash')
+  .option('--until <date>', 'projection horizon', addMonthsIso(today(), 3))
+  .action(async (o: { dir: string; until: string }) => {
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const data = await bakeDatasets(store, {
+      asOf: assertIsoDate(today()),
+      until: assertIsoDate(o.until),
+      now: () => new Date().toISOString(),
+    });
+    await store.close();
+
+    const dest = resolve(process.cwd(), o.dir, 'src', 'data', 'ledger.json');
+    if (!existsSync(dirname(dest))) {
+      throw new UsageError(`no dashboard at ${resolve(process.cwd(), o.dir)} — run \`holiday dash init\` first`);
+    }
+    writeFileSync(dest, `${JSON.stringify(data, null, 2)}\n`);
+    if (jsonMode()) return out(data);
+    note(`Baked ${dest}`);
+    note(`This is a SNAPSHOT. Re-run after every txn add / ingest / close.`);
+  });
+
+// No `dash catalog` command, on purpose. The catalog is a Zod object in
+// @holiday-cfo/blocks, and it imports @json-render/react — printing it from here
+// would drag React into a 423KB CLI bundle that has no business knowing what a
+// component is. The block list lives in the template's AGENTS.md, which lands
+// next to spec.json in the project where the agent is actually reading. A script
+// keeps the two honest: pnpm --filter @holiday-cfo/cli check:catalog.
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);

@@ -1,10 +1,10 @@
-import type { Dialect, SqlDriver, SqlValue } from '@holiday/store-sql';
+import type { Dialect, SqlDriver, SqlValue } from '@holiday-cfo/store-sql';
 
 import type { PgClient } from './client.js';
 
 /**
  * Postgres behind the same SqlDriver the SQLite adapter implements, so both
- * engines run the one store in @holiday/store-sql rather than two mirrors of it.
+ * engines run the one store in @holiday-cfo/store-sql rather than two mirrors of it.
  *
  * There are exactly two things to get right here, and `pg()` below is one of them.
  * The other is int8.

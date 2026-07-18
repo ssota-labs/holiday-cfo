@@ -639,7 +639,6 @@ w(
 // Spec
 w('spec/meta.json', meta('스펙', ['cli', 'data-model'], { collapsible: true, defaultOpen: false }));
 const cliPages = [
-  'index',
   'versions',
   'init',
   'account',

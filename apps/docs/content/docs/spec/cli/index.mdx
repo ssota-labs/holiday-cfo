@@ -7,9 +7,15 @@ summary: 전역 --json, stderr 에러 봉투, exit code가 계약이다.
 
 <SpecVersion
   spec="CLI"
-  version="0.1.0"
+  version="0.1.1"
   source="packages/cli/src/cli.ts"
   history={[
+    {
+      version: '0.1.1',
+      date: '2026-07-18',
+      summary: 'ingest --post/--data-file/--source, cashflow --spend/--receive, npm @holiday-cfo/cli',
+      ref: 'packages/cli/src/cli.ts',
+    },
     {
       version: '0.1.0',
       date: '2026-07-17',
@@ -24,16 +30,16 @@ summary: 전역 --json, stderr 에러 봉투, exit code가 계약이다.
 
 제품 진입점은 CLI다. 구현 기준은 `packages/cli/src/cli.ts`다.
 
-<PackageInfo name="@holiday/cli" currentVersion="0.1.0">
+<PackageInfo name="@holiday-cfo/cli" currentVersion="0.1.1">
   <PackageInfoHeader>
     <PackageInfoName />
     <PackageInfoVersion />
   </PackageInfoHeader>
-  <PackageInfoDescription>Node ≥ 24. 저장소는 로컬 SQLite(.holiday/ledger.db)만.</PackageInfoDescription>
+  <PackageInfoDescription>Node ≥ 24. 저장소는 로컬 SQLite(.holiday/ledger.db)만. npx @holiday-cfo/cli</PackageInfoDescription>
   <PackageInfoDependencies>
-    <PackageInfoDependency name="@holiday/core" version="0.1.0" />
-    <PackageInfoDependency name="@holiday/store-sql" version="0.1.0" />
-    <PackageInfoDependency name="@holiday/store-sqlite" version="0.1.0" />
+    <PackageInfoDependency name="@holiday-cfo/core" version="0.1.1" />
+    <PackageInfoDependency name="@holiday-cfo/store-sql" version="0.1.1" />
+    <PackageInfoDependency name="@holiday-cfo/store-sqlite" version="0.1.1" />
     <PackageInfoDependency name="commander" />
     <PackageInfoDependency name="zod" />
   </PackageInfoDependencies>

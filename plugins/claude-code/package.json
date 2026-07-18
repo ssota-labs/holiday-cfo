@@ -1,0 +1,11 @@
+{
+  "name": "holiday-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:skill": "node --experimental-strip-types scripts/check-skill-commands.ts",
+    "test": "pnpm run check:skill",
+    "pretest": "pnpm --filter @holiday-cfo/cli build"
+  }
+}

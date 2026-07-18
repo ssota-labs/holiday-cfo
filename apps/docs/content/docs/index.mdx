@@ -7,7 +7,7 @@ summary: 1인용 복식부기 CLI. 문서는 SWDL 기획·도메인·기능·스
 
 `holiday`는 1인용 복식부기 원장 CLI다. 로컬 SQLite(`.holiday/ledger.db`)에 거래·스케줄·환율·마감을 기록하고, 현금흐름과 감사 체인을 검증한다.
 
-런타임은 **Node ≥ 24**다. CLI 저장소는 SQLite뿐이다.
+런타임은 **Node ≥ 24**다. CLI 저장소는 SQLite뿐이다. 배포는 `npx @holiday-cfo/cli` (ADR-007).
 
 ## 이 문서를 읽는 순서
 
@@ -51,5 +51,13 @@ holiday verify
 
 - OCR·이미지 파싱 없음 (`ingest`는 이미 파싱된 JSON)
 - 환율 자동 수집 API 없음
-- 대시보드·웹 UI 없음 (제품은 CLI)
-- CLI는 SQLite만 (`@holiday/store-postgres`는 라이브러리/테스트용)
+- 라이브 대시보드 없음 (`dash`는 스냅샷 굽기)
+- CLI는 SQLite만 (`@holiday-cfo/store-postgres`는 라이브러리/테스트용)
+
+## 에이전트로 읽기
+
+모든 페이지에 `.md` 쌍둥이가 있다. `/docs/domain/policy`는 React를 렌더하고,
+[`/docs/domain/policy.md`](/docs/domain/policy.md)는 원문 마크다운을 준다.
+
+스킬은 [`plugins/claude-code/skills/holiday-cfo/`](https://github.com/ssota-labs/holiday/tree/main/plugins/claude-code/skills/holiday-cfo)와
+[`plugins/codex/`](https://github.com/ssota-labs/holiday/tree/main/plugins/codex)에 있다.

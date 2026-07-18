@@ -1,13 +1,27 @@
 {
-  "name": "@holiday/store-sql",
-  "version": "0.1.0",
+  "name": "@holiday-cfo/store-sql",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
-  "exports": { ".": "./dist/index.js" },
-  "files": ["dist"],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": { "@holiday/core": "workspace:*" }
+  "dependencies": {
+    "@holiday-cfo/core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssota-labs/holiday-cfo.git",
+    "directory": "packages/store-sql"
+  }
 }

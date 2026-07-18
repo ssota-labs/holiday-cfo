@@ -15,7 +15,7 @@ import {
   accountTypeOf,
   assertAccountCode,
   unwrap,
-} from '@holiday/core';
+} from '@holiday-cfo/core';
 
 export const registry = CommodityRegistry.from(WELL_KNOWN_COMMODITIES);
 export const amounts = new AmountFactory(registry);

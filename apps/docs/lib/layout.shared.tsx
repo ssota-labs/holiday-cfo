@@ -10,6 +10,6 @@ export function baseOptions(): BaseLayoutProps {
         </>
       ),
     },
-    githubUrl: 'https://github.com/ssota-labs/holiday',
+    githubUrl: 'https://github.com/ssota-labs/holiday-cfo',
   };
 }

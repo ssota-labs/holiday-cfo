@@ -4,7 +4,7 @@
 // the hand-written custom migrations under migrations/ (triggers, which drizzle-kit
 // does not model). Regenerate with:
 //
-//   pnpm --filter @holiday/store-sqlite run migrations:build
+//   pnpm --filter @holiday-cfo/store-sqlite run migrations:build
 //
 // This exists because the CLI ships as one self-contained file: Drizzle's migrate()
 // reads .sql off disk at runtime, and there is no disk to read next to a bundled

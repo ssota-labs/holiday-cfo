@@ -1,88 +1,190 @@
 ---
 title: ADR
-description: 아키텍처 결정 기록
+description: 무엇을 골랐고, 무엇을 왜 버렸나
 type: decision
-summary: weight 잔액, 로컬 SQLite SoR, cash 플래그, drizzle DDL.
+summary: 거부한 대안이 본문이다. 코드를 읽어선 알 수 없는 부분이라서.
 ---
+
+**거부한 대안이 각 항목의 본문이다.** 무엇을 골랐는지는 누구나 코드를 읽어서 알 수
+있다. 무엇을 시도했다 버렸는지는 아무도 못 읽고, 그게 정확히 1년 뒤에 다시 제안되는
+것이다. "환율을 그냥 저장하면 안 되나?"에는 답이 있고, 그 답은 누군가 원장을 다시
+쓰기 전에 찾을 수 있는 곳에 있어야 한다.
+
+`status`는 되돌릴 수 있는지를 정직하게 말한다 — `accepted`는 바뀔 수 있고, `locked`는
+과거를 다시 쓰는 마이그레이션 없이는 못 바꾼다.
 
 <Decision
   id="ADR-001"
+  title="환율이 아니라 상대금액으로 균형을 잡는다"
   status="locked"
-  title="잔액은 저장된 weight"
-  date="2026-07-01"
+  date="2026-07-17"
+  commit="836f6c5"
   rejected={[
-    { option: '조회 시 rate×units로 재균형', because: '과거 기표가 환율 변경에 흔들리고 허용오차가 생긴다' },
-    { option: 'Beancount currency groups', because: '개인 가계 원장에 과도하고 손실성' },
+    { option: '거래마다 기표통화 + 전기마다 환율', because: '환율을 되곱하면 정수 스케일에서 lossy하다. ₩1,000,000 → $750.00은 1333.3333…이고 역산하면 ₩999,998. 그럼 허용오차를 발명하게 되고, 그게 잡고 싶은 크기를 가린다.' },
+    { option: 'Beancount의 통화별 weight 그룹', because: '기준통화 없이 균형을 잡을 수 있는 대신 허용오차 추론과 booking 알고리즘이 필요하고, 무엇보다 KRW 장부가액이 명시되지 않아 매번 lossy한 변환 패스가 필요하다.' },
   ]}
 >
-  Σ `weight_minor`가 균형이다. 조회 시 rate×units로 다시 맞추지 않는다. 허용오차 없음.
+전기마다 `units_minor`(사실)와 `weight_minor`(측정)를 저장한다. weight는 Beancount의
+`@@`(총액 가격)를 환율에서 곱해내지 않고 직접 저장한 것이다.
+
+**locked인 이유:** 5년치 전기가 "이 사건의 KRW 측정"을 인코딩한다. 기준통화를 옮기려면
+과거 전부를 `units × rate`로 다시 유도해야 하는데, 그게 바로 이 설계가 피하려는 연산이다.
+새 인생 국면은 마이그레이션이 아니라 새 book이다.
 </Decision>
 
 <Decision
   id="ADR-002"
+  title="JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로"
   status="accepted"
-  title="SoR = 로컬 SQLite + 해시 체인"
-  date="2026-07-01"
+  date="2026-07-17"
+  commit="74677cb"
   rejected={[
-    { option: 'JSONL + git을 SoR로', because: '동시성·부분 쓰기·에이전트 idempotency에 약하다' },
-    { option: 'CLI에서 Postgres 직접 오픈', because: '1인 로컬 제품 경로를 흐린다' },
+    { option: 'JSONL 저널을 SoR로 + git log -p를 감사 수단으로', because: '사용자가 git 커밋으로 감사하길 원치 않았다. 그러면 저널은 쿼리도 안 되고(rebuild는 순차 replay뿐) byte-identical 라운드트립을 스키마 버전 넘어 영원히 보장하는 대가만 남는다.' },
+    { option: 'SQLite .db를 gitignore', because: '오프머신 백업과 "어제 파일로 되돌리기"를 잃는다. 바이너리라 diff는 안 나오지만, diff를 보는 건 애초에 git 감사였고 그건 뺐다.' },
   ]}
 >
-  `.holiday/ledger.db`가 진실. 감사는 audit_log 체인. CLI는 Postgres를 열지 않는다.
-</Decision>
+`.db`가 system of record이고 커밋된다. 감사는 `audit_log` 해시 체인 — 각 행이 직전 행에
+커밋하고, 거래 행은 **내용 해시**에 커밋한다. 손으로 전기를 고치면 잔액은 맞아도
+`verify`가 잡는다.
 
-<Decision
-  id="ADR-003"
-  status="accepted"
-  title="환율 = scaled bigint 10^18"
-  date="2026-07-01"
-  rejected={[
-    { option: 'float', because: '비결정적 잔차' },
-    { option: 'decimal.js', because: '번들·결정성 비용 대비 이득 없음' },
-  ]}
->
-  half-away-from-zero 반올림. `RATE_SCALE = 10^18`.
+**정직한 한계:** 우발적 변조는 잡지만 체인 전체를 재계산하는 사람은 못 막는다. head를
+파일 밖에 앵커해야 닫힌다 — `holiday verify --head`가 그 용도다.
+
+저널과 달리 해시는 버전 dispatch가 된다. `CHAIN_HASH_VERSION`을 올리면 과거 행은 자기
+버전으로 계속 검증된다. byte-stable 저널엔 없던 탈출구다.
 </Decision>
 
 <Decision
   id="ADR-004"
+  title="현금은 계정 플래그다. 코드 접두어가 아니다"
   status="accepted"
-  title="현금 = account.cash 플래그"
-  date="2026-07-01"
+  date="2026-07-17"
+  commit="5036abe"
   rejected={[
-    { option: 'Assets:Bank:* / Assets:Cash:* prefix 추론', because: '실계좌 명명이 제각각이고 마이그레이션이 깨진다' },
+    { option: '`Assets:Bank*` / `Assets:Cash*` 접두어 규칙', because: '관례를 사실인 척한 것이었다. 다른 이름 밑에 있는 현금이 투영에서 **조용히** 빠졌고, 그럼 숫자는 여전히 자신만만하게 틀린다. 틀리는 방식 중 최악이다.' },
   ]}
 >
-  cashflow opening은 `--cash`로 표시된 계정만. `openLedger` 시 플래그 유지.
+`account.cash`. 마이그레이션이 옛 관례에서 백필하고, `account add`와 `cashflow` 양쪽이
+현금으로 표시되지 않은 자산 계정을 **소리내어 말한다**.
+
+이걸 만들다가 더 심각한 버그를 찾았다: 마이그레이션을 `init` 명령만 실행하고 있어서,
+기존 원장을 새 바이너리로 열면 없는 컬럼을 읽고 죽었다. ledger.db는 사용자가 커밋해두는
+원장이고 플러그인 바이너리는 따로 업데이트되니, **플러그인을 한 번 업데이트하면 모든
+기존 장부가 안 열렸을 것이다.** 새 DB로만 테스트했으면 못 봤다.
 </Decision>
 
 <Decision
   id="ADR-005"
+  title="스키마는 drizzle-kit. 쿼리는 우리 것"
   status="accepted"
-  title="DDL drizzle-kit, 쿼리 Db 래퍼"
-  date="2026-07-01"
+  date="2026-07-17"
+  commit="75a75e8"
   rejected={[
-    { option: '전 경로 drizzle-orm 쿼리', because: '엔진 차이·트리거와 충돌' },
-    { option: '손수 SQL만', because: '스키마 드리프트' },
+    { option: 'drizzle-orm 전면 도입 (쿼리 포함)', because: 'Drizzle의 SQLite 세션은 setReadBigInts(true)를 절대 호출하지 않고 integer()가 내부적으로 `number int53`으로 타이핑돼 있다. 2^53을 넘으면 ERR_OUT_OF_RANGE로 죽고 주입할 훅이 없다(prepareQuery 안의 지역 변수). 이 원장의 금액은 i64이고 적합성 스위트가 2^53+1 왕복을 못박는다.' },
+    { option: "blob({mode:'bigint'})", because: 'bigint를 십진수 ASCII로 BLOB에 저장한다. 정확하지만 SUM()이 안 되고 ORDER BY가 바이트 정렬이라 getBalances가 통째로 날아간다.' },
+    { option: '손으로 쓴 SQL 유지', because: '마이그레이션 관리가 원시적이었고, 무엇보다 "적용된 마이그레이션 수정 금지"가 강제되지 않는 주석이었다.' },
   ]}
 >
-  엔진별 schema/triggers. 마이그레이션 인라인+해시.
+DDL은 Drizzle이 만들고 읽기는 `Db` 래퍼가 한다. `integer()`가 뱉는 DDL은 평범한
+`INTEGER`라 이 분리는 비용이 0이다.
+
+**도입 동기였던 전제는 성립하지 않았다.** Drizzle은 SQLite와 Postgres에 하나의 스키마를
+주지 않는다 — `sqliteTable`과 `pgTable`은 별개 빌더고 컬럼 타입도 안 겹친다. Supabase는
+어차피 자기 스키마를 쓴다. SQLite의 `RAISE(ABORT)`와 Postgres의 plpgsql `RAISE
+EXCEPTION`은 방언이 다른 거지 툴체인 문제가 아니고, 포트 경계가 이미 그걸 허용한다.
+
+**진짜 얻은 건 해시 추적이다.** `__holiday_migrations`가 각 마이그레이션의 sha256을
+기록해서, 적용된 걸 수정하면 다음 열기에서 터진다. Drizzle의 `__drizzle_migrations`에서
+가져온 아이디어인데 테이블은 우리 것이다 — Drizzle의 `migrate()`는 런타임에 디스크에서
+`.sql`을 읽고, 이 CLI는 옆에 아무것도 없는 단일파일이다.
+
+**대가:** STRICT 테이블을 잃었다(drizzle-kit 미지원). 손편집으로 INTEGER 컬럼에 TEXT를
+넣는 걸 막던 ring 3 하나가 빠졌다. 그리고 RC(`1.0.0-rc.4`)에 핀됐다 — stable에는
+node:sqlite 드라이버가 없다.
+</Decision>
+
+<Decision
+  id="ADR-003"
+  title="이율은 스케일드 bigint. float도 decimal.js도 아니다"
+  status="accepted"
+  date="2026-07-17"
+  commit="45b293c"
+  rejected={[
+    { option: 'IEEE 754 double', because: '0.1 + 0.2 !== 0.3이 블로그 글에선 웃기지만 360번 복리로 굴리면 안 웃기다. 이 원장은 금액에 float을 쓰지 않는데 이율에만 쓸 이유가 없다.' },
+    { option: 'decimal.js', because: '순수 JS라 번들은 되지만, @holiday-cfo/core는 설치 스텝 없는 단일파일 플러그인 바이너리에 인라인된다. 의존성은 값어치를 증명해야 하고, 이건 40줄 고정소수점으로 된다.' },
+  ]}
+>
+18자리 스케일 정수. 360회 곱셈에 누적 오차가 원 단위로 1e-10 수준이라 무의미하다.
+
+반올림은 **half away from zero** — 은행이 하는 방식이다. banker's rounding으로 영리하게
+굴면 `loan check`가 매달 ₩1 차이를 영원히 보고한다.
 </Decision>
 
 <Decision
   id="ADR-006"
+  title="스토어는 하나. 방언만 갈라진다"
   status="accepted"
-  title="store-sql 단일 구현"
-  date="2026-07-01"
+  date="2026-07-17"
+  commit="2c90bef"
   rejected={[
-    { option: '엔진별 LedgerStore 이중 구현', because: '불변식 분기' },
-    { option: '공유 drizzle 빌더만으로 dialect 추상화', because: '트리거·타입이 갈라짐' },
+    { option: 'store-sqlite를 기계 변환해서 store-postgres 만들기 (착수 직전까지 갔다)', because: '쓰는 날에는 두 파일이 일치하지만, 한쪽에만 들어간 첫 손수정에서 갈라진다. 포트 경계를 둔 이유가 정확히 그걸 막으려는 건데 그 경계를 배신하는 방법이었다.' },
+    { option: 'Drizzle로 스키마 하나 두고 두 엔진에 공유', because: 'ADR-005. sqliteTable과 pgTable은 별개 빌더고 트리거 본문은 진짜로 다른 SQL이다. 스키마는 공유가 불가능하다 — 하지만 그게 스토어까지 갈라야 한다는 뜻은 아니었다.' },
+    { option: 'node:sqlite에 맞춰 스토어를 동기로 유지', because: 'Postgres를 동기로 만들 방법이 없다. 동기 엔진에 비동기 외투를 입히는 건 값이 싸고(모든 호출이 즉시 resolve된다) 반대 방향은 불가능하다.' },
   ]}
 >
-  dialect 차이는 sqlite/postgres 패키지에만.
+전제를 믿지 않고 **셌다.** 스토어 1,486줄 중 SQLite 고유인 것:
+
+| | |
+|---|---|
+| `GLOB` | 3 |
+| `PRAGMA` | 3 |
+| `INSERT OR IGNORE` | 1 |
+| `BEGIN IMMEDIATE` | 1 |
+| **합계** | **8** |
+
+여덟 줄. 구조적 차이는 `node:sqlite`가 동기라는 것 하나뿐이었고, 그건 **드라이버
+인터페이스**를 두라는 근거지 스토어를 하나 더 쓰라는 근거가 아니다.
+
+그래서 `@holiday-cfo/store-sql`이 `LedgerStore`를 하나만 구현하고, 엔진 패키지는 드라이버·
+스키마·마이그레이션만 가진다. 8곳은 `Dialect`로 접힌다 — `subtreeWildcard()`와
+`prepare()`, 그리고 엔진의 선택적 `init`/`checkpoint` 훅.
+
+**`GLOB`이 공유 SQL에 남아있는 건 SQLite-ism을 흘린 게 아니다.** 이 매칭은 대소문자를
+구분해야 하는데 SQLite의 `LIKE`는 구분하지 않는다 — `Assets:bank:x`가 `Assets:Bank`
+접두사에 걸린다. `GLOB`이 SQLite에서 그걸 쓰는 철자이고, Postgres에서는 `LIKE`가 이미
+대소문자를 구분한다. 같은 의미, 두 방언. 드라이버가 번역한다.
+
+**이 리팩터를 판단 가능하게 만든 건 적합성 스위트다.** 1,486줄을 옮기고 전부 비동기로
+바꿨는데 18개가 그대로 통과했다. 스위트가 없었으면 "아마 같을 것"이 최선이었다.
+
+부산물로 타입체커가 잡아준 것: `await this.db.all<T>(...).map(...)`은
+`await (….map(…))`으로 파싱돼서 `.map`이 Promise에 붙는다. 전 호출부에 괄호가 필요했고
+20군데가 한 번에 드러났다.
 </Decision>
 
-## 관행 (ADR 아님)
+<Decision
+  id="ADR-007"
+  title="CLI는 npm으로 배포한다. 플러그인에 번들을 커밋하지 않는다"
+  status="accepted"
+  date="2026-07-18"
+  commit="fb82051"
+  supersedes="번들 배포 (ADR-002·설치 스텝 없는 단일파일 논거)"
+  rejected={[
+    { option: '플러그인에 단일파일 번들을 커밋 (원래 방식)', because: '`node:sqlite`를 강제하는 근거였는데(네이티브 애드온은 번들 불가), 대시보드를 붙이면서 사용자 프로젝트는 어차피 npm install을 한다는 게 분명해졌다. 번들을 유지할 이유가 CLI 자체 말고는 없어졌고, 커밋된 바이너리는 썩는다.' },
+    { option: 'claude-code는 번들, codex는 npx (혼합)', because: '두 호스트가 서로 다른 CLI를 얻으면 한쪽에서만 나는 버그가 생긴다. 번들은 실행해야만 검증되는데(스코프 리네임이 번들을 조용히 깨뜨린 전례), 검증 표면을 둘로 늘릴 이유가 없다.' },
+  ]}
+>
+CLI는 `@holiday-cfo/cli`로 npm에 배포한다. 두 플러그인은 스킬만 담고, 에이전트는
+`npx @holiday-cfo/cli@latest`로 CLI를 얻는다. 첫 실행에 네트워크가 필요한 대신,
+커밋된 바이너리도 재번들 CI도 없다.
 
-- draft는 review accept 전 장부가 아님
-- close는 FX 재평가+스냅샷+period closed. CLI는 `closing_entry` P&L을 쓰지 않음
+**`node:sqlite` 선택은 그대로다.** 근거만 바뀌었다 — "네이티브 애드온은 번들 불가"에서
+"의존성 0·네이티브 빌드 0이라 `npx` 첫 실행이 가볍다"로. 결론이 살아남았다는 건 그게
+표면적 제약이 아니라 실제로 옳은 선택이었다는 뜻이다.
+
+버전 정합성은 npm이 공짜로 준다: `holiday dash init`이 스캐폴드하는 프로젝트는
+`@holiday-cfo/blocks`를 CLI 자기 버전으로 **정확히 핀**한다. CLI와 그것이 가르치는
+블록 어휘가 한 버전으로 함께 움직인다.
+</Decision>
+
+

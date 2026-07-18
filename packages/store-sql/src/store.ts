@@ -49,7 +49,7 @@ import {
   type VerifyProblem,
   type VerifyReport,
   assertEngineTier,
-} from '@holiday/core';
+} from '@holiday-cfo/core';
 
 import { CHAIN_HASH_VERSION, chainHash, GENESIS_HASH, stableJson, txnContentHash } from './chain.js';
 import type { SqlDriver, SqlValue } from './driver.js';
@@ -973,6 +973,12 @@ class SqlUow implements LedgerUow {
   async findIngestBatchBySha(sha: string): Promise<IngestBatch | null> {
     const r = await this.db.get<IngestBatchRaw>('SELECT * FROM ingest_batch WHERE source_sha256 = ?', sha);
     return r ? mapBatch(r) : null;
+  }
+
+  async listIngestBatches(): Promise<readonly IngestBatch[]> {
+    return (
+      await this.db.all<IngestBatchRaw>('SELECT * FROM ingest_batch ORDER BY submitted_at DESC, id DESC')
+    ).map(mapBatch);
   }
 
   async findIngestItemsByDedupeKey(key: string): Promise<readonly IngestItem[]> {

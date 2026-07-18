@@ -1,7 +1,7 @@
 /**
- * @holiday/store-sql — the LedgerStore, written once, over any SQL engine.
+ * @holiday-cfo/store-sql — the LedgerStore, written once, over any SQL engine.
  *
- * The engine packages (`@holiday/store-sqlite`, `@holiday/store-postgres`) supply
+ * The engine packages (`@holiday-cfo/store-sqlite`, `@holiday-cfo/store-postgres`) supply
  * a driver, a schema, and migrations. They do not reimplement the store.
  */
 export { SqlLedgerStore, type SqlStoreOptions } from './store.js';

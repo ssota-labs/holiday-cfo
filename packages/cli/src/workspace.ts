@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import type { CommodityCode, Grain } from '@holiday/core';
-import type { SqlLedgerStore } from '@holiday/store-sql';
-import { sqliteLedgerStore } from '@holiday/store-sqlite';
+import type { CommodityCode, Grain } from '@holiday-cfo/core';
+import type { SqlLedgerStore } from '@holiday-cfo/store-sql';
+import { sqliteLedgerStore } from '@holiday-cfo/store-sqlite';
 
 export const DIR = '.holiday';
 

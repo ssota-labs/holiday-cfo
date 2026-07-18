@@ -1,23 +1,46 @@
 ---
 title: 데이터 수집
-description: ingest submit → review
+description: ingest submit → review (또는 --post)
 type: guide
-summary: OCR 없음. draft만 적재. 사람이 승인.
+summary: OCR 없음. 기본은 draft. --post는 대량 수입용. 사람이 승인.
+related:
+  - /docs/domain/policy
+  - /docs/agent/skill
+  - /docs/planning/stories/us-ingest-review
 ---
 
 에이전트/사람은 파싱된 JSON을 넘긴다. CLI는 OCR을 하지 않는다.
 
+수집은 `status='draft'`인 **진짜 거래**를 쓴다(기본). 균형 규칙이 수집 시점에
+돌고, **불균형 항목은 만들 수조차 없다.** `--post`는 검토 큐를 건너뛰고 바로
+posted로 넣는다 — 대량 히스토리 수입용.
+
 ## 수락 기준
 
-1. submit 결과는 pending draft
-2. image SHA / external_ref 중복 hard-block
+1. 기본 submit 결과는 pending draft (`--post`면 accepted/posted)
+2. source/image SHA · external_ref 중복은 hard-block
 3. reject 행 유지(dedup)
 4. accept 후 posted만 잔액에 포함
 5. close 게이트는 period 내 draft를 막는다
+6. `--data`와 `--data-file` 중 정확히 하나
+7. `--idem-key`로 재시도 안전 (에이전트는 사실상 필수)
+
+## 중복 판단
+
+| 근거 | 판단 |
+|---|---|
+| 이미지/소스 sha256 | 차단 |
+| externalRef | 차단 |
+| 자연키 | 경고만 |
+| ±3일 퍼지 | 경고만 |
+
+거부된 항목은 삭제하지 않는다 — 중복 기억이다.
 
 ## 스펙
 
-[ingest submit](/docs/spec/cli/ingest/submit) · [review list](/docs/spec/cli/review/list) · [accept](/docs/spec/cli/review/accept) · [reject](/docs/spec/cli/review/reject)
+[ingest submit](/docs/spec/cli/ingest/submit) · [ingest list](/docs/spec/cli/ingest/list) ·
+[review list](/docs/spec/cli/review/list) · [accept](/docs/spec/cli/review/accept) ·
+[reject](/docs/spec/cli/review/reject)
 
 ## 스토리
 

@@ -1,58 +1,104 @@
 ---
-title: Skill
-description: holiday-cfo 에이전트 계약
-type: reference
-summary: plugin/skills/holiday-cfo. --json shell-out. 추정 기표 금지.
+title: 스킬 스펙
+description: holiday-cfo의 progressive disclosure 구조
+type: conceptual
+summary: SKILL.md는 항상 로드된다. references/는 작업이 요구할 때만.
 ---
 
 <SpecVersion
-  spec="skill"
+  spec="스킬"
   version="0.1.0"
-  source="plugin/skills/holiday-cfo"
+  source="plugins/claude-code/.claude-plugin/plugin.json"
   history={[
-    {
-      version: '0.1.0',
-      date: '2026-07-17',
-      summary: 'SKILL.md + references (ledger-model, accounts, schedules, recipes)',
-      ref: 'plugin/skills/holiday-cfo/SKILL.md',
-    },
+    { version: '0.1.0', date: '2026-07-17', summary: 'holiday-cfo — SKILL.md + references 4개. 수집·리뷰 포함', ref: 'plugins/claude-code/skills/holiday-cfo/SKILL.md' },
   ]}
 />
 
-소스: [`plugin/skills/holiday-cfo/`](https://github.com/ssota-labs/holiday/tree/main/plugin/skills/holiday-cfo).
+플러그인은 스킬 하나를 싣는다: `holiday-cfo`.
 
-## When to use
+## Progressive disclosure
 
-가계·부채 기록, 현금흐름 vs 카드 청구, 스케줄 설정, close, 캡쳐 ingest.  
-투자 자문·일반 재무 상담에는 쓰지 않는다.
+에이전트의 컨텍스트는 예산이다. 전부 항상 로드하면 정작 필요한 순간에 자리가 없다.
+그래서 두 층으로 나뉜다 — **SKILL.md는 트리거되면 항상 로드**되고, `references/`는
+작업이 실제로 요구할 때만 읽힌다.
 
-## Hard rules
+<Files>
+  <Folder name="plugins" defaultOpen>
+    <Folder name="claude-code" defaultOpen>
+      <Folder name=".claude-plugin">
+        <File name="plugin.json" />
+      </Folder>
+      <Folder name="skills" defaultOpen>
+        <Folder name="holiday-cfo" defaultOpen>
+          <File name="SKILL.md" />
+          <Folder name="references" defaultOpen>
+            <File name="ledger-model.md" />
+            <File name="accounts.md" />
+            <File name="schedules.md" />
+            <File name="recipes.md" />
+          </Folder>
+        </Folder>
+      </Folder>
+    </Folder>
+    <Folder name="codex">
+      <File name="SKILL.md (동일 스킬)" />
+    </Folder>
+  </Folder>
+</Files>
 
-1. 금액·날짜·계정을 지어내지 않는다 — 불명확하면 묻는다
-2. 거래는 정확히 균형 (허용오차 없음)
-3. 계정 추측 금지 — `account list` 먼저
-4. 비명백한 기표는 쓰기 전 분개 제시
-5. 명령에 `--json`. 에러는 stderr JSON 봉투
-6. `ingest submit`에 `--idem-key`
-7. FX는 관측 `@@` 선호
-8. `assert`만 외부 세계 대사
+경계를 가르는 기준: **SKILL.md에는 어기면 돌이킬 수 없는 것만.** 나머지는 필요할 때
+읽으면 된다.
 
-## 명령 패턴
+| 층 | 언제 로드 | 담는 것 |
+|---|---|---|
+| `SKILL.md` | 스킬이 트리거되면 항상 | 어기면 안 되는 규칙, 방향 잡기, 현금흐름 답하기, references 색인 |
+| `references/ledger-model.md` | 사용자가 *왜* 이 숫자냐고 물을 때, 외화가 낄 때 | units/weight, 허용오차 없는 이유, `@@` 문법, 부호 규약 |
+| `references/accounts.md` | 계정을 만들거나 이름이 헷갈릴 때 | 명명, `--commodity`가 왜 필수인지, 현금 계정 접두어 함정 |
+| `references/schedules.md` | 카드·할부·정기지출 셋업 | 각각의 함정. funding이 통장이냐 카드냐 |
+| `references/recipes.md` | 캡쳐에서 기록, FX, 환불, 정정 | 실제 명령 레시피 |
 
-| 작업 | 명령 |
-|---|---|
-| 오리엔트 | `account list`, `balance`, `verify` |
-| 기표 | `txn add --leg …` |
-| 수집 | `ingest submit` → `review …` |
-| 마감 | `assert` → `close [--dry-run]` |
-| 런웨이 | `cashflow --until` |
+## SKILL.md가 지면을 어디에 쓰나
 
-스펙: [CLI latest](/docs/spec/cli).
+절반이 **금지사항**이다. 이유가 있다: 수집과 리뷰 게이트가 있어도 **모델이 읽은 숫자
+자체는 아무도 검증하지 못한다** — 사람이 `₩1,240,00`을 확정하면 틀리게 확정된다.
+에이전트가 이 시스템에서 가장 약한 고리다.
 
-## Cannot yet
+<Canvas
+  height={280}
+  nodes={[
+    { id: 'shot', type: 'doc', position: { x: 0, y: 40 }, data: { label: '캡쳐', description: '사용자가 대화에 첨부', kind: 'external', handles: { target: false } } },
+    { id: 'model', type: 'doc', position: { x: 200, y: 40 }, data: { label: 'vision 모델', description: '⚠ 가장 약한 고리', kind: 'external' } },
+    { id: 'confirm', type: 'doc', position: { x: 400, y: 40 }, data: { label: '사람 확인', description: '전표를 말로 보여주고 승인', kind: 'external' } },
+    { id: 'cli', type: 'doc', position: { x: 620, y: 40 }, data: { label: 'holiday txn add', description: '균형·통화·트리거', kind: 'derived' } },
+    { id: 'db', type: 'doc', position: { x: 620, y: 150 }, data: { label: 'ledger.db', description: '확정. append-only', kind: 'fact', handles: { source: false } } },
+  ]}
+  edges={[
+    { id: 's1', source: 'shot', target: 'model', animated: true },
+    { id: 's2', source: 'model', target: 'confirm', animated: true },
+    { id: 's3', source: 'confirm', target: 'cli', animated: true },
+    { id: 's4', source: 'cli', target: 'db' },
+  ]}
+/>
 
-OCR, auto-accept, 할부수수료 계산, FX API, 대시보드. SoR는 로컬 SQLite.
+<CanvasLegend />
 
-## Note
+CLI의 방어선은 균형·통화 적합성·트리거뿐이다. **"모델이 ₩1,240,000을 ₩1,240,00으로
+안 읽었다"는 보장이 없다** — 둘 다 완벽하게 균형 잡힌 거래니까.
 
-스킬 참고 문서에 prefix 기반 cash 언급이 남아 있을 수 있다. **코드·ADR-004 기준은 `--cash` 플래그**다.
+리뷰 게이트가 생겼지만 그게 답은 아니다. 게이트는 **잘못된 카테고리**를 잡지 **오독한
+금액**을 못 잡는다 — `₩1,240,00`을 사람이 승인하면 틀린 채로 승인된다. 그래서 SKILL.md는
+여전히 "금액을 지어내지 마라, 계정을 추측하지 마라, 쓰기 전에 전표를 말로 보여줘라,
+`$`인지 `₩`인지 헷갈리면 멈춰라"에 지면을 쓴다.
+
+## 없는 걸 없다고 말한다
+
+SKILL.md 마지막 섹션이 **못 하는 것 목록**이다: OCR 없음(모델이 파서다), 자동 승인 없음,
+할부수수료 계산 없음, 마감·환율 테이블 없음.
+
+빈칸을 즉흥으로 메우는 스킬이 "지원 안 함"이라고 말하는 스킬보다 나쁘다. 전자는
+그럴듯하게 틀린 장부를 만들고, 후자는 사용자가 다음 수를 고르게 한다.
+
+## 검증
+
+스킬이 주장하는 모든 명령이 실제로 존재해야 한다. 작업 중 `holiday card list`를
+참조하는데 그 명령이 없다는 걸 발견했고, 문서를 고치는 대신 명령을 추가했다.

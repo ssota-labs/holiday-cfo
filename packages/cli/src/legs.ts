@@ -1,4 +1,4 @@
-import { type Amount, type AmountFactory, type CommodityCode, type PostingInput, type Account } from '@holiday/core';
+import { type Amount, type AmountFactory, type CommodityCode, type PostingInput, type Account } from '@holiday-cfo/core';
 
 /**
  * Leg syntax, borrowed from Beancount because it is the notation people who keep

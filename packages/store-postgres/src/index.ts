@@ -1,8 +1,8 @@
 /**
- * @holiday/store-postgres — the ledger on Postgres (Supabase, or pglite in tests).
+ * @holiday-cfo/store-postgres — the ledger on Postgres (Supabase, or pglite in tests).
  *
  * This package is a driver, a schema, and migrations. It does NOT implement
- * LedgerStore: that lives once in @holiday/store-sql and both engines run it.
+ * LedgerStore: that lives once in @holiday-cfo/store-sql and both engines run it.
  *
  * The reason is a measurement rather than a preference. The store is ~1,500 lines
  * and exactly eight of them were dialect-specific; mirroring it here would have

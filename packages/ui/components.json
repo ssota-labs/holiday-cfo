@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-lyra",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "iconLibrary": "tabler",
+  "aliases": {
+    "components": "@holiday-cfo/ui/components",
+    "utils": "@holiday-cfo/ui/lib/utils",
+    "hooks": "@holiday-cfo/ui/hooks",
+    "lib": "@holiday-cfo/ui/lib",
+    "ui": "@holiday-cfo/ui/components"
+  },
+  "rtl": false,
+  "menuColor": "inverted-translucent",
+  "menuAccent": "subtle"
+}
