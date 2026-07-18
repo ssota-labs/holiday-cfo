@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type * as PageTree from 'fumadocs-core/page-tree';
 import Link from 'fumadocs-core/link';
 import { usePathname } from 'fumadocs-core/framework';
@@ -17,11 +17,10 @@ import { cn } from '@/lib/cn';
 /**
  * Sidebar folder accordion without Radix CollapsibleContent.
  *
- * Two embed bugs this avoids:
- * 1. CollapsibleContent + Presence waits for animationend (often never fires).
- * 2. fumadocs SidebarFolder sets `defaultOpen = active || …` and re-applies it
- *    via useOnChange. We pass `active={false}` so user collapses stick, and
- *    open once via effect when the route enters the folder.
+ * - Children mount only when open (no Presence/animationend).
+ * - SidebarFolder gets active={false} so useOnChange cannot fight toggles.
+ * - Open only on active false→true transition (not on every effect while active).
+ * - Large hit targets: chevron button + clicking the title while open collapses.
  */
 
 const itemClass =
@@ -47,12 +46,16 @@ function useFolderState() {
   return folder;
 }
 
-/** Open when the route enters this folder; never force-reopen on every render. */
+/** Open only when the route newly enters this folder. */
 function OpenWhenActive({ active }: { active: boolean }) {
   const { setOpen } = useFolderState();
+  const wasActive = useRef(active);
+
   useEffect(() => {
-    if (active) setOpen(true);
+    if (active && !wasActive.current) setOpen(true);
+    wasActive.current = active;
   }, [active, setOpen]);
+
   return null;
 }
 
@@ -74,6 +77,15 @@ function InstantFolderContent({ children }: { children: ReactNode }) {
   );
 }
 
+function toggleOpen(
+  setOpen: (next: boolean | ((prev: boolean) => boolean)) => void,
+  e?: { preventDefault(): void; stopPropagation(): void },
+) {
+  e?.preventDefault();
+  e?.stopPropagation();
+  setOpen((prev) => !prev);
+}
+
 function ToggleChevron() {
   const { open, setOpen, collapsible } = useFolderState();
   if (!collapsible) return null;
@@ -83,11 +95,11 @@ function ToggleChevron() {
       type="button"
       aria-expanded={open}
       aria-label={open ? 'Collapse section' : 'Expand section'}
-      className="text-fd-muted-foreground hover:bg-fd-accent/50 relative z-10 -m-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen((prev) => !prev);
+      title={open ? '접기' : '펼치기'}
+      className="text-fd-muted-foreground hover:bg-fd-accent/80 hover:text-fd-accent-foreground relative z-10 -my-1.5 -me-1.5 inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-md border border-transparent hover:border-fd-border"
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        toggleOpen(setOpen, e);
       }}
     >
       <ChevronDown
@@ -122,8 +134,15 @@ function FolderLink({
         href={href}
         external={external}
         className="flex min-w-0 flex-1 items-center gap-2"
-        onClick={() => {
-          if (collapsible && !open) setOpen(true);
+        onClick={(e) => {
+          if (!collapsible) return;
+          // Already open: collapse (big click target). Cmd/Ctrl-click still navigates.
+          if (open && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setOpen(false);
+            return;
+          }
+          if (!open) setOpen(true);
         }}
       >
         {children}
@@ -149,11 +168,12 @@ function FolderTrigger({ children }: { children: ReactNode }) {
     <button
       type="button"
       aria-expanded={open}
+      title={open ? '접기' : '펼치기'}
       className={itemClass}
       style={{ paddingInlineStart: getItemOffset(depth - 1) }}
-      onClick={(e) => {
-        e.preventDefault();
-        setOpen((prev) => !prev);
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        toggleOpen(setOpen, e);
       }}
     >
       {children}
@@ -180,7 +200,6 @@ export function DocsSidebarFolder({
   return (
     <SidebarFolder
       collapsible={collapsible}
-      // Initial open only. Pass active={false} so useOnChange cannot fight toggles.
       defaultOpen={active || Boolean(item.defaultOpen)}
       active={false}
     >
