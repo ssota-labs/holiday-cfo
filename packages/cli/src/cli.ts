@@ -41,8 +41,6 @@ import {
   monthlyFromAnnual,
   parseAnnualPercent,
   rowForDate,
-  type ExistingTxn,
-  type ParsedTxn,
   type AssertionCheck,
   type SnapshotBalance,
   convert,
@@ -52,15 +50,20 @@ import {
   closeGate,
   monthBounds,
   revaluationLines,
-  dedupeKey,
-  findNearDuplicates,
-  sha256,
   sha256Bytes,
   scheduleInterest,
+  AppError,
+  listAccounts,
+  submitIngest,
+  listPendingReviews,
+  acceptReview,
+  rejectReview,
+  verifyLedger,
 } from '@holiday-cfo/core';
+import { IngestSubmission } from '@holiday-cfo/contracts';
 
 import { bakeDatasets, scaffold } from './dash.js';
-import { INGEST_SUBMISSION, type IngestItemInput } from './ingest.js';
+import { scaffoldDeploy } from './deploy.js';
 import { type DeriveWeight, UsageError, parseLeg } from './legs.js';
 import { createWorkspace, openLedger, readConfig, requireWorkspace } from './workspace.js';
 
@@ -159,10 +162,10 @@ account
   .action(async () => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
-    const accounts = await store.read((r) => r.listAccounts());
+    const result = await listAccounts(store);
     await store.close();
-    if (jsonMode()) return out(accounts);
-    for (const a of accounts) {
+    if (jsonMode()) return out(result.accounts);
+    for (const a of result.accounts) {
       const tags = [a.cash ? 'cash' : null, a.placeholder ? 'placeholder' : null, a.monetary ? null : 'non-monetary']
         .filter(Boolean)
         .join(' ');
@@ -991,174 +994,39 @@ ingest
     } catch (e) {
       throw new UsageError(`--data is not valid JSON: ${(e as Error).message}`);
     }
-    const submission = INGEST_SUBMISSION.parse(parsed);
+    const submission = IngestSubmission.parse(parsed);
 
     // Hash the image ourselves when we can see it. This is the one duplicate
     // check that can block without ever being wrong: identical bytes are the
     // same screenshot.
-    let sourceSha = submission.sourceSha256 ?? null;
+    let imageSha256: string | null = submission.sourceSha256 ?? null;
     if (o.image) {
       const { readFile } = await import('node:fs/promises');
-      sourceSha = await sha256Bytes(new Uint8Array(await readFile(o.image)));
+      imageSha256 = await sha256Bytes(new Uint8Array(await readFile(o.image)));
     }
 
-    const requestSha = await sha256(o.data);
-    const replay = o.idemKey ? await store.read((r) => r.getCommandResult(o.idemKey!)) : null;
-    if (replay) {
-      // An agent shelling out to a CLI WILL retry on timeout. Double-posting is
-      // the one failure mode that destroys trust in a ledger.
-      await store.close();
-      if (replay.requestSha256 !== requestSha) {
-        throw new UsageError(
-          `idem-key ${o.idemKey} was already used for a DIFFERENT request. Keys are per operation.`,
-        );
-      }
-      note('(replayed — this exact submission already ran)');
-      process.stdout.write(`${replay.responseJson}\n`);
-      return;
-    }
-
-    const result = await store.unitOfWork(async (uow) => {
-      if (sourceSha) {
-        const seen = await uow.findIngestBatchBySha(sourceSha);
-        if (seen) {
-          throw new LedgerError(
-            'duplicate_image',
-            `this exact image was already ingested on ${seen.submittedAt} (${seen.itemCount} item(s)). ` +
-              `Dropping the same file twice is always a mistake.`,
-          );
-        }
-      }
-
-      const accounts = await uow.listAccounts();
-      const byCode = new Map(accounts.map((a) => [a.code as string, a]));
-      const byId = new Map(accounts.map((a) => [a.id, a]));
-      const resolve = (code: string): Account => {
-        const a = byCode.get(code);
-        if (!a) throw new UsageError(`no such account: ${code}. Create it before ingesting.`);
-        return a;
-      };
-
-      // Everything already in the ledger that a near-duplicate could match.
-      const existing: ExistingTxn[] = [];
-      for await (const p of uow.streamPostings({ from: addMonthsIso(today(), -2) as IsoDate })) {
-        const t = await uow.getTxn(p.txnId);
-        existing.push({
-          txnId: p.txnId,
-          accountId: p.accountId,
-          date: p.txnDate,
-          unitsMinor: p.unitsMinor,
-          commodity: p.commodity,
-          merchant: t?.txn.payee ?? null,
-        });
-      }
-
-      const batchId = nextUlid();
-      await uow.recordIngestBatch({
-        id: batchId,
-        sourceSha256: sourceSha ?? `no-image:${batchId}`,
-        sourceName: submission.sourceName ?? (o.image ? o.image.split('/').at(-1)! : null),
-        submittedAt: nowIso(),
-        itemCount: submission.items.length,
+    let result;
+    try {
+      result = await submitIngest(store, {
+        submission,
+        functionalCurrency: config.functionalCurrency,
+        imageSha256,
+        sourceNameHint: o.image ? o.image.split('/').at(-1)! : null,
+        idemKey: o.idemKey ?? null,
+        requestJson: o.data,
+        amounts,
       });
-
-      const out: {
-        itemId: string;
-        txnId: string;
-        status: string;
-        warnings: string[];
-      }[] = [];
-
-      for (const item of submission.items) {
-        const postings = item.legs.map((l) =>
-          parseLeg(
-            `${l.account} ${l.amount} ${l.commodity}${l.weight ? ` @@ ${l.weight}` : ''}`,
-            amounts,
-            config.functionalCurrency,
-            resolve,
-          ),
-        );
-        // The balance rule runs HERE, on the draft. An unbalanced draft cannot be
-        // created, which is what makes accepting one later a status flip that
-        // cannot fail.
-        const txn = Txn.create({
-          id: nextUlid() as TxnId,
-          date: assertIsoDate(item.date),
-          bookingCommodity: config.functionalCurrency,
-          payee: item.payee ?? null,
-          narration: item.narration ?? '',
-          sourceItemId: batchId,
-          postings,
-        });
-        if (!txn.ok) throw new LedgerError('unbalanced', txn.error.map(describeTxnError).join('\n'));
-
-        const moneyLeg = pickMoneyLeg(txn.value.postings, byId, item);
-        const candidate: ParsedTxn = {
-          accountId: moneyLeg.accountId,
-          date: assertIsoDate(item.date),
-          unitsMinor: moneyLeg.units.minor,
-          commodity: moneyLeg.units.commodity,
-          merchant: item.payee ?? null,
-          externalRef: item.externalRef ?? null,
-        };
-        const { key, authority } = await dedupeKey(candidate);
-
-        const priorItems = await uow.findIngestItemsByDedupeKey(key);
-        if (authority === 'external_ref' && priorItems.length > 0) {
-          // The issuer's own id. Nothing is more authoritative about their record.
-          throw new LedgerError(
-            'duplicate_external_ref',
-            `transaction ${item.externalRef} is already ingested (item ${priorItems[0]!.id}, ` +
-              `${priorItems[0]!.status}). The issuer's id says this is the same transaction.`,
-          );
-        }
-
-        const near = findNearDuplicates(candidate, existing);
-        const warnings = near.map(
-          (n) => `possible duplicate of ${n.txnId} (${n.date}, ${n.merchant ?? '?'}): ${n.reason}`,
-        );
-        if (authority === 'natural' && priorItems.length > 0) {
-          warnings.push(
-            `an earlier ingest had the same account, date, amount and merchant (item ${priorItems[0]!.id}) — ` +
-              `but two identical purchases in a day are real, so this is only a warning`,
-          );
-        }
-
-        await uow.appendTxn(txn.value, { status: 'draft' });
-        const itemId = nextUlid();
-        await uow.recordIngestItem({
-          id: itemId,
-          batchId,
-          dedupeKey: key,
-          dedupeAuthority: authority,
-          externalRef: item.externalRef ?? null,
-          merchant: item.payee ?? null,
-          txnId: txn.value.id,
-          status: 'pending',
-          reason: null,
-          // Verbatim, so a misread has an audit trail.
-          parsedJson: JSON.stringify(item),
-          createdAt: nowIso(),
-        });
-        out.push({ itemId, txnId: txn.value.id, status: 'pending', warnings });
-      }
-      return { batchId, items: out };
-    });
-
-    const response = JSON.stringify(result);
-    if (o.idemKey) {
-      await store.unitOfWork((uow) =>
-        uow.recordCommandResult({
-          idemKey: o.idemKey!,
-          requestSha256: requestSha,
-          responseJson: response,
-          createdAt: nowIso(),
-        }),
-      );
+    } catch (e) {
+      await store.close();
+      throw e;
     }
     await store.close();
 
-    out(result);
+    if (result.replayed) note('(replayed — this exact submission already ran)');
+    out({
+      batchId: result.batchId,
+      items: result.items,
+    });
     note(`${result.items.length}건을 DRAFT로 기록했습니다. 잔액·리포트에서 제외됩니다.`);
     for (const i of result.items) for (const w of i.warnings) note(`  ⚠ ${w}`);
     note(`검토: \`holiday review list\` → \`holiday review accept <id>\``);
@@ -1172,28 +1040,22 @@ review
   .action(async () => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
-    const result = await store.read(async (r) => {
-      const items = await r.listIngestItems({ status: 'pending' });
+    const listed = await listPendingReviews(store);
+    const detail = await store.read(async (r) => {
       const accounts = new Map((await r.listAccounts()).map((a) => [a.id, a]));
       return Promise.all(
-        items.map(async (i) => ({ item: i, txn: i.txnId ? await r.getTxn(i.txnId) : null, accounts })),
+        listed.items.map(async (item) => ({
+          item,
+          txn: item.txnId ? await r.getTxn(item.txnId as TxnId) : null,
+          accounts,
+        })),
       );
     });
     await store.close();
 
-    if (jsonMode()) {
-      return out(
-        result.map(({ item, txn }) => ({
-          id: item.id,
-          txnId: item.txnId,
-          date: txn?.txn.date,
-          payee: txn?.txn.payee,
-          merchant: item.merchant,
-        })),
-      );
-    }
-    if (result.length === 0) return note('검토할 드래프트가 없습니다.');
-    for (const { item, txn, accounts } of result) {
+    if (jsonMode()) return out(listed.items);
+    if (detail.length === 0) return note('검토할 드래프트가 없습니다.');
+    for (const { item, txn, accounts } of detail) {
       if (!txn) continue;
       note(`${item.id}  ${txn.txn.date}  ${txn.txn.payee ?? txn.txn.narration}`);
       for (const p of txn.txn.postings) {
@@ -1204,7 +1066,7 @@ review
       }
     }
     note('');
-    note(`${result.length}건 대기. \`holiday review accept <id>\` / \`reject <id> --reason\``);
+    note(`${detail.length}건 대기. \`holiday review accept <id>\` / \`reject <id> --reason\``);
   });
 
 review
@@ -1214,18 +1076,9 @@ review
   .action(async (id: string, _o: { idemKey?: string }) => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
-    const result = await store.unitOfWork(async (uow) => {
-      const items = await uow.listIngestItems();
-      const item = items.find((i) => i.id === id);
-      if (!item) throw new UsageError(`no such review item: ${id}`);
-      if (item.status !== 'pending') throw new UsageError(`item ${id} is already ${item.status}`);
-      if (!item.txnId) throw new UsageError(`item ${id} has no transaction`);
-      await uow.promoteDraft(item.txnId);
-      await uow.setIngestItemStatus(id, 'accepted', {});
-      return { id, txnId: item.txnId };
-    });
+    const result = await acceptReview(store, id);
     await store.close();
-    out({ ...result, status: 'accepted' });
+    out(result);
     note(`승인됨. 이제 잔액과 현금흐름에 들어갑니다.`);
   });
 
@@ -1236,16 +1089,9 @@ review
   .action(async (id: string, o: { reason: string }) => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
-    await store.unitOfWork(async (uow) => {
-      const items = await uow.listIngestItems();
-      const item = items.find((i) => i.id === id);
-      if (!item) throw new UsageError(`no such review item: ${id}`);
-      if (item.status !== 'pending') throw new UsageError(`item ${id} is already ${item.status}`);
-      if (item.txnId) await uow.rejectDraft(item.txnId, o.reason);
-      await uow.setIngestItemStatus(id, 'rejected', { reason: o.reason });
-    });
+    const result = await rejectReview(store, id, o.reason);
     await store.close();
-    out({ id, status: 'rejected', reason: o.reason });
+    out(result);
     // Deleting it would let the same screenshot be re-proposed forever.
     note(`거부됨. 기록은 남습니다 — 같은 캡쳐가 다시 제안되는 걸 막는 기억입니다.`);
   });
@@ -1531,7 +1377,6 @@ program
   .option('--until <date>', 'projection horizon', addMonthsIso(today(), 3))
   .action(async (o: { until: string }) => {
     const ws = requireWorkspace();
-    const config = readConfig(ws);
     const store = await openLedger(ws);
 
     const now = assertIsoDate(today());
@@ -1589,34 +1434,6 @@ program
   });
 
 /**
- * Which leg identifies the transaction for duplicate detection.
- *
- * The card or the bank — not the category. Two people can categorise the same
- * purchase differently; the money side is what the issuer actually recorded.
- */
-function pickMoneyLeg(
-  postings: readonly { accountId: AccountId; units: { minor: bigint; commodity: CommodityCode } }[],
-  byId: ReadonlyMap<AccountId, Account>,
-  item: IngestItemInput,
-): { accountId: AccountId; units: { minor: bigint; commodity: CommodityCode } } {
-  if (item.dedupeOn) {
-    const wanted = postings.find((p) => byId.get(p.accountId)?.code === item.dedupeOn);
-    if (!wanted) throw new UsageError(`dedupeOn names ${item.dedupeOn}, which is not one of the legs`);
-    return wanted;
-  }
-  const money = postings.find((p) => {
-    const t = byId.get(p.accountId)?.type;
-    return t === 'liability' || t === 'asset';
-  });
-  if (!money) {
-    throw new UsageError(
-      'no liability or asset leg to identify this transaction by. Add "dedupeOn" naming the card or bank account.',
-    );
-  }
-  return money;
-}
-
-/**
  * Build a rate-deriving closure for ONE transaction date.
  *
  * Resolves each commodity's rate at most once and caches it, so every leg in the
@@ -1670,17 +1487,22 @@ program
   .action(async (o: { head: boolean }) => {
     const ws = requireWorkspace();
     const store = await openLedger(ws);
-    const report = await store.unitOfWork((uow) => uow.verify());
-    const head = await store.chainHead();
+    const report = await verifyLedger(store, {
+      chainHead: () => store.chainHead(),
+      throwOnFailure: false,
+    });
     await store.close();
 
-    if (jsonMode()) return out({ ...report, head });
-    if (o.head) note(head ? `chain head: #${head.seq} ${head.hash}` : 'chain head: (empty ledger)');
+    if (jsonMode()) return out(report);
+    if (o.head) {
+      const head = report.head ?? null;
+      note(head ? `chain head: #${head.seq} ${head.hash}` : 'chain head: (empty ledger)');
+    }
     if (report.ok) {
       note(`OK — ${report.checked} transaction(s) checked, audit chain intact.`);
       return;
     }
-    for (const p of report.problems) note(`${p.kind}  ${p.subject}\n  ${p.detail}`);
+    for (const p of report.problems) note(`${p.kind}  ${p.subject ?? ''}\n  ${p.detail}`);
     throw new LedgerError('verify_failed', `${report.problems.length} problem(s) found`);
   });
 
@@ -1794,8 +1616,75 @@ program.option('--json', 'machine-readable output on stdout');
  * a bare message is ambiguous. Exit 2 means "you asked for something impossible",
  * exit 1 means "the ledger says no".
  */
+const deploy = program.command('deploy').description('BYOC 배포 — 사용자가 고른 타깃에 팩스 자동화 스택을 생성');
+
+deploy
+  .command('init')
+  .description('scaffold a non-destructive deploy project (vercel-supabase | chatgpt-sites)')
+  .requiredOption('--target <name>', 'vercel-supabase | chatgpt-sites')
+  .option('--dir <path>', 'where to write it', '.')
+  .option(
+    '--mode <mode>',
+    'chatgpt-sites only: inbox-export (default) | engine (requires D1 conformance)',
+    'inbox-export',
+  )
+  .action(async (o: { target: string; dir: string; mode: string }) => {
+    if (o.target !== 'vercel-supabase' && o.target !== 'chatgpt-sites') {
+      throw new UsageError(`unknown deploy target: ${o.target}. Use vercel-supabase or chatgpt-sites.`);
+    }
+    if (o.mode !== 'inbox-export' && o.mode !== 'engine') {
+      throw new UsageError(`unknown mode: ${o.mode}. Use inbox-export or engine.`);
+    }
+    const dest = resolve(process.cwd(), o.dir);
+    const result = scaffoldDeploy({
+      dest,
+      target: o.target,
+      version: program.version() ?? '0.1.0',
+      mode: o.mode as 'inbox-export' | 'engine',
+    });
+    out({
+      dir: dest,
+      target: o.target,
+      mode: result.mode,
+      created: result.created,
+      skipped: result.skipped,
+      d1EngineEligible: result.d1EngineEligible,
+    });
+    note(`Deploy scaffold at ${dest} (target=${o.target}, mode=${result.mode})`);
+    if (result.skipped.length > 0) note(`Kept existing: ${result.skipped.join(', ')}`);
+    if (o.target === 'chatgpt-sites' && result.mode === 'inbox-export') {
+      note('D1 is NOT an engine-tier ledger here. Sites mode is fax inbox + review/export only.');
+    }
+    note('Never copy .holiday/**, *.db, or .env* into the deploy project.');
+    note('Next: follow holiday-deploy-* / holiday-fax skills; run synthetic fax tests before production.');
+  });
+
+deploy
+  .command('check')
+  .description('print deploy target capabilities and D1 engine gate status')
+  .action(() => {
+    out({
+      targets: {
+        'vercel-supabase': {
+          ledger: 'postgres via @holiday-cfo/store-postgres (engine)',
+          objects: 'Supabase Storage (private)',
+          background: 'Vercel after() + durable fax_inbox recovery route',
+        },
+        'chatgpt-sites': {
+          ledger: 'not claimed — D1 fails interactive unitOfWork conformance',
+          objects: 'Sites-managed R2',
+          background: 'none (Queues/Cron unsupported) — explicit retry via UI/MCP',
+          mode: 'inbox-export',
+        },
+      },
+      d1EngineEligible: false,
+      managedWeb: false,
+    });
+  });
+
 program.parseAsync().catch((e: unknown) => {
-  const code = e instanceof UsageError ? 'usage' : e instanceof LedgerError ? e.code : 'internal';
+  const code =
+    e instanceof UsageError ? 'usage' : e instanceof AppError ? e.code : e instanceof LedgerError ? e.code : 'internal';
   const message = e instanceof Error ? e.message : String(e);
   process.stderr.write(`${JSON.stringify({ error: { code, message } })}\n`);
   process.exit(code === 'usage' ? 2 : 1);
