@@ -10,12 +10,17 @@ history as is worth entering.
    banks/cards/debts on top. Mark spendable accounts `--cash`. Set card billing
    cycles with `holiday card add`, 할부 and 정기지출, loans. Naming rules in
    `../concepts/accounts.md`, schedules in `../concepts/schedules.md`.
-3. **Classification rules, before importing — do not skip this.** Seed the obvious
-   ones from the chart — `holiday rule add "스타벅스" Expenses:Food:Cafe`,
-   통신사·구독·편의점 등 10~20개면 대부분이 잡힌다. Rules only fire on `money`
-   items (see the import section), so this step and the item format below are one
-   mechanism: skip either half and every row lands unclassified. Whatever no rule
-   matches parks in Uncategorized as a DRAFT for the user to pick later.
+3. **Classification rules, before importing — do not skip this.** And seed them
+   from the DATA, not from imagination: parse the raw file first (without
+   importing), count payees by frequency, and bring the user the top of that
+   list — "이 20개 가맹점이 전체 거래의 60%입니다. 스타벅스→Food:Cafe,
+   LGU+→Telecom …으로 잡을까요?" Confirm the mapping, then `holiday rule add`
+   each one. One rule classifies every matching row across ten years at once,
+   which is why this scan pays for itself instantly — the queue that survives to
+   the categorize screen should hold only the genuinely ambiguous tail. Rules
+   only fire on `money` items (see the import section), so this step and the
+   item format below are one mechanism: skip either half and every row lands
+   unclassified.
 4. **Opening balances.** For each asset/liability that already has a balance, post
    it against `Equity:Opening` dated the start point:
    `holiday txn add --date 2026-01-01 --leg "Assets:Bank:Shinhan 4310000 KRW" --leg "Equity:Opening -4310000 KRW"`.
