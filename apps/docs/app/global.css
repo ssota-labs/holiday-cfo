@@ -9,32 +9,29 @@
 @source '../components/**/*.tsx';
 
 /*
- * Sidebar scroll: leave Radix ScrollArea viewport as the scroller.
- * Do not force overflow:visible on the viewport — that breaks Collapsible.
+ * Sidebar scroll.
+ *
+ * Radix ScrollArea keeps overflow-y:hidden on the viewport until its scrollbar
+ * effect runs (scrollbarYEnabled). In Cursor's browser preview that often
+ * never flips to scroll, so the nav is clipped with no wheel scrolling.
+ *
+ * Force the viewport to scroll, and also allow the flex-1 ScrollArea root to
+ * scroll as a fallback when the viewport height grows with content.
  */
-#nd-sidebar [data-radix-scroll-area-viewport],
-#nd-sidebar-mobile [data-radix-scroll-area-viewport] {
+#nd-sidebar > .overflow-hidden.min-h-0.flex-1,
+#nd-sidebar-mobile > .overflow-hidden.min-h-0.flex-1,
+#nd-sidebar > [data-radix-scroll-area-root],
+#nd-sidebar-mobile > [data-radix-scroll-area-root] {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
-/*
- * Sidebar accordion reliability.
- *
- * fumadocs CollapsibleContent uses data-[state=closed]:animate-fd-collapsible-up.
- * Radix Presence waits for animationend before applying `hidden`. In some
- * embeds (Cursor browser preview) that event never fires, so aria-expanded
- * flips to false / chevron rotates but children stay visible.
- *
- * Skip the height animation in the sidebar and hide closed panels immediately.
- */
-#nd-sidebar [data-state='closed'].overflow-hidden,
-#nd-sidebar-mobile [data-state='closed'].overflow-hidden {
-  animation: none !important;
-  display: none !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
+#nd-sidebar [data-radix-scroll-area-viewport],
+#nd-sidebar-mobile [data-radix-scroll-area-viewport] {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
