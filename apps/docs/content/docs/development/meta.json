@@ -1,7 +1,7 @@
 {
-  "title": "설계",
+  "title": "개발",
   "pages": [
-    "system",
+    "plans",
     "adr"
   ],
   "collapsible": true,

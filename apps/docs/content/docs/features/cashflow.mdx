@@ -4,7 +4,7 @@ description: 앞으로의 잔고를 날짜별로 보고, 부족 날을 안다
 type: guide
 summary: 현금 시작 잔액 + 스케줄 투영. 가정 유출·유입. 음수면 부족.
 related:
-  - /docs/design/adr
+  - /docs/development/adr
   - /docs/planning/stories/us-cashflow-short
 ---
 
@@ -60,7 +60,7 @@ related:
 **스케줄에서 원장으로 가는 화살표가 없다.** 예측은 전기되지 않는다 — 금리가
 바뀌거나 구독을 해지할 때마다 과거가 오염된다.
 
-현금이 뭔지는 `account.cash` 플래그가 정한다 — prefix가 아니다 ([ADR-004](/docs/design/adr#ADR-004)).
+현금이 뭔지는 `account.cash` 플래그가 정한다 — prefix가 아니다 ([ADR-004](/docs/development/adr#ADR-004)).
 
 ## 실제 출력
 

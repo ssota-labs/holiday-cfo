@@ -53,9 +53,9 @@ export function docKindFromSlug(slug: readonly string[] | undefined): DocKindNam
   if (!slug || slug.length === 0) return null;
   const [a, b] = slug;
   if (a === 'planning' && b === 'prds' && slug.length > 2) return 'PRD';
-  if (a === 'planning' && b === 'stories' && slug.length > 2) return 'US';
-  if (a === 'planning' && b === 'plans' && slug.length > 2) return 'PLAN';
-  if (a === 'design' && b === 'adr') return 'ADR';
+  if (a === 'planning' && b === 'stories' && slug.length > 2 && slug[2] !== 'journeys') return 'US';
+  if (a === 'development' && b === 'plans' && slug.length > 2) return 'PLAN';
+  if (a === 'development' && b === 'adr') return 'ADR';
   if (a === 'spec' && slug.length >= 2) return 'SPEC';
   return null;
 }

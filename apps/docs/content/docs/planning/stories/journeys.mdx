@@ -1,0 +1,34 @@
+---
+title: Journeys
+description: 스토리를 묶은 E2E 시나리오
+type: guide
+summary: 원장 세팅 → 스케줄·수집 → 현금흐름·마감.
+---
+
+## J1. 원장 세팅
+
+| 단계 | User Story | 사용자 행동 | 완료 조건 |
+|---|---|---|---|
+| 1 | [us-ledger-init](/docs/planning/stories/us-ledger-init) | 기능통화와 시간대를 정해 장부를 만든다 | 같은 위치에서 기록을 시작할 수 있다 |
+| 2 | [us-accounts](/docs/planning/stories/us-accounts) | 통장·카드 등 실제 계정을 등록한다 | 현금 계정과 비현금 계정이 구분된다 |
+| 3 | [us-txn](/docs/planning/stories/us-txn) | 첫 수입·지출을 균형 전표로 남긴다 | 차변과 대변이 맞는 거래만 확정된다 |
+| 4 | [us-verify](/docs/planning/stories/us-verify) | 장부의 감사 체인을 확인한다 | 누락·변조 없이 검증을 통과한다 |
+
+## J2. 스케줄과 수집
+
+| 단계 | User Story | 사용자 행동 | 완료 조건 |
+|---|---|---|---|
+| 1 | [us-cards](/docs/planning/stories/us-cards) | 카드의 청구 주기와 결제 계정을 등록한다 | 다음 결제일과 청구 구간을 알 수 있다 |
+| 2 | [us-installments](/docs/planning/stories/us-installments) | 할부 회차와 납부 일정을 남긴다 | 남은 회차별 지출이 현금흐름에 잡힌다 |
+| 3 | [us-recurring](/docs/planning/stories/us-recurring) · [us-income](/docs/planning/stories/us-income) | 정기 지출과 수입을 등록한다 | 아직 발생하지 않은 현금 유입·유출이 날짜별로 보인다 |
+| 4 | [us-loans](/docs/planning/stories/us-loans) | 대출 원금·이자와 상환 일정을 남긴다 | 앞으로 갚을 금액과 실제 상환을 맞춰 볼 수 있다 |
+| 5 | [us-ingest-review](/docs/planning/stories/us-ingest-review) | 외부에서 읽은 거래를 검토한다 | 분류 대기 건을 승인하거나 반려할 수 있다 |
+| 6 | [us-fx](/docs/planning/stories/us-fx) | 외화 거래에 적용할 상대금액을 남긴다 | 외화 전표도 기능통화 기준으로 균형을 이룬다 |
+
+## J3. 현금흐름과 마감
+
+| 단계 | User Story | 사용자 행동 | 완료 조건 |
+|---|---|---|---|
+| 1 | [us-cashflow-short](/docs/planning/stories/us-cashflow-short) | 확정 거래와 앞으로의 일정을 함께 본다 | 현금이 부족해지는 날짜와 금액을 알 수 있다 |
+| 2 | [us-close-assert](/docs/planning/stories/us-close-assert) | 실제 잔액과 장부 잔액을 맞추고 기간을 마감한다 | 차이가 설명되고 마감 뒤 과거 기록이 보호된다 |
+| 3 | [us-verify](/docs/planning/stories/us-verify) | 마감 뒤 장부 전체를 다시 검증한다 | 감사 체인과 장부 불변식이 모두 통과한다 |

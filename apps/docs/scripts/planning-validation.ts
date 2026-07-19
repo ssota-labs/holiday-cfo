@@ -70,8 +70,13 @@ export function parseFrontmatter(source: string, file: string): Frontmatter {
 function classify(file: string, contentDir: string, frontmatter: Frontmatter): DocumentKind | null {
   const rel = relative(contentDir, file).replaceAll('\\', '/');
   if (rel.startsWith('planning/prds/') && basename(file) !== 'index.mdx') return 'prd';
-  if (rel.startsWith('planning/stories/') && basename(file) !== 'index.mdx') return 'story';
-  if (rel.startsWith('planning/plans/') && basename(file) !== 'index.mdx') return 'plan';
+  if (
+    rel.startsWith('planning/stories/') &&
+    !['index.mdx', 'journeys.mdx'].includes(basename(file))
+  ) {
+    return 'story';
+  }
+  if (rel.startsWith('development/plans/') && basename(file) !== 'index.mdx') return 'plan';
   if (rel.startsWith('spec/') && asString(frontmatter.id)?.startsWith(PREFIX.spec)) return 'spec';
   return null;
 }

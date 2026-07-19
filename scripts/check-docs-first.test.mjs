@@ -6,13 +6,13 @@ const plan = ({
   stage = 'ready',
   codeAreas = ['packages/core'],
 } = {}) => `---
-id: PLAN-one
+id: plan-one
 stage: ${stage}
 codeAreas: [${codeAreas.join(', ')}]
 ---
 `;
 
-const body = '## Planning\n\nPlan: apps/docs/content/docs/planning/plans/plan-one.mdx\n';
+const body = '## Planning\n\nPlan: apps/docs/content/docs/development/plans/plan-one.mdx\n';
 
 test('allows documentation-only changes without a plan', () => {
   assert.deepEqual(
@@ -56,7 +56,7 @@ test('accepts a ready base plan covering every changed code path', () => {
     validateDocsFirst({
       changedPaths: [
         'packages/core/src/domain/account.ts',
-        'apps/docs/content/docs/planning/plans/plan-one.mdx',
+        'apps/docs/content/docs/development/plans/plan-one.mdx',
       ],
       prBody: body,
       readBaseFile: () => plan(),
@@ -73,7 +73,7 @@ test('rejects draft plans and paths outside codeAreas', () => {
   }).join('\n');
 
   assert.match(problems, /stage must be ready or active/);
-  assert.match(problems, /not covered by PLAN-one codeAreas/);
+  assert.match(problems, /not covered by plan-one codeAreas/);
 });
 
 test('allows exact-file codeAreas', () => {

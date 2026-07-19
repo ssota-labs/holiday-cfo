@@ -3,11 +3,12 @@
   "pages": [
     "index",
     "workflow",
+    "vision",
     "planning",
+    "development",
     "domain",
     "features",
     "spec",
-    "design",
     "agent"
   ]
 }

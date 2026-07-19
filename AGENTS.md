@@ -34,8 +34,8 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 ## 개발 전 기획 게이트
 
 `apps/docs`가 기획의 단일 진실이다. 구현 코드를 먼저 고치고 문서를 역기록하지 마라.
-절차·**작성 기준(비개발자 독자)** 은 `apps/docs/content/docs/workflow.mdx`,
-기계 계약은 `apps/docs/content/docs/spec/development/docs-first-workflow.mdx`를 따른다.
+절차·**작성 기준(비개발자 독자)** 은 `apps/docs/content/docs/workflow/planning.mdx`,
+기계 계약은 `apps/docs/content/docs/workflow/development.mdx`를 따른다.
 
 1. 작업을 시작하면 기존 PRD·스펙·구현계획이 요청을 충분히 설명하는지 먼저 확인한다.
 2. 새 기능·사용자 동작 변경(`product`)은 PRD + 스펙 + 구현계획이 필요하다.
@@ -53,7 +53,7 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
    이 대기를 건너뛰지 않는다.
 8. 구현 브랜치의 base에는 준비된 계획(`stage: ready|active`)이 이미 있어야 한다.
    같은 PR에 계획과 코드를 같이 넣지 마라. 구현 PR 본문에
-   `Plan: apps/docs/content/docs/planning/plans/plan-….mdx`를 적는다.
+   `Plan: apps/docs/content/docs/development/plans/plan-….mdx`를 적는다.
 9. 구현 중 범위나 계약이 달라지면 기획 PR로 문서를 먼저 갱신한다. 같은 내용을 새 ID로
    복제하지 않는다. 한글 본문을 다시 고치면 6번(humanize)을 재실행한다.
 10. 구현과 검증이 끝나면 계획을 `done`으로 갱신한다.
@@ -71,7 +71,7 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 - 제품명(`holiday`)을 문장 주어로 반복하지 마라. CLI·경로에만 쓴다.
 - **필수:** im-not-ai (`humanize` / `humanize-korean`). 기획 한글 초안 → `/humanize` →
   반영 → 리뷰. 스킵 금지.
-- 템플릿: `apps/docs/templates/`. 절차 전문: `apps/docs/content/docs/workflow.mdx`.
+- 템플릿: `apps/docs/templates/`. 절차 전문: `apps/docs/content/docs/workflow/planning.mdx`.
 
 docs-only 변경은 선행 계획이 없어도 된다. 그 밖의 일반 우회 표식은 없다.
 
@@ -122,7 +122,7 @@ node packages/cli/dist/main.js <command>   # 배포되면 `npx @holiday-cfo/cli@
 9. **`LedgerStore` 구현은 `store-sql`에 하나.** 엔진 패키지는 드라이버·스키마·마이그레이션만.
 
 정책 카탈로그와 강제 테스트: `apps/docs/content/docs/domain/policy.mdx`.
-결정은 `apps/docs/content/docs/design/adr.mdx` — 거부한 대안이 본문이다.
+결정은 `apps/docs/content/docs/development/adr.mdx` — 거부한 대안이 본문이다.
 
 ## 코딩 규칙
 

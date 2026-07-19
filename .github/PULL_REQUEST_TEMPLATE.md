@@ -3,7 +3,7 @@
 - Change type: `product | bugfix | maintenance | docs-only`
 - PRD: <!-- PRD-* 또는 해당 없음 -->
 - Spec: <!-- SPEC-* 또는 해당 없음 -->
-- Plan: <!-- apps/docs/content/docs/planning/plans/plan-*.mdx -->
+- Plan: <!-- apps/docs/content/docs/development/plans/plan-*.mdx -->
 
 ## 요약
 

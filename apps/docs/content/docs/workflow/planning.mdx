@@ -4,8 +4,8 @@ description: PRD·스펙·구현계획을 확정한 뒤 구현하는 방법
 type: guide
 summary: 기획은 비개발자가 읽고 판단할 수 있어야 한다. 한글 본문은 im-not-ai로 윤문한 뒤 기획 PR을 병합한다.
 related:
-  - /docs/spec/development/docs-first-workflow
-  - /docs/planning/plans
+  - /docs/workflow/development
+  - /docs/development/plans
   - /docs/planning/prds/prd-docs-first-development
 ---
 
@@ -64,7 +64,7 @@ related:
 8. PRD/US **본문에 메타 안내를 넣지 않는다.**
    - 나쁨: `기획/비개발자가 확인할 수 있는 기준:` / `구현 PR에서 확인할 게이트:`
    - 좋음: 성공 지표·수락 기준 목록만 바로 쓴다
-   - 독자·리뷰 절차는 [이 workflow](/docs/workflow)와 `AGENTS.md`에만 둔다
+   - 독자·리뷰 절차는 [이 workflow](/docs/workflow/planning)와 `AGENTS.md`에만 둔다
 9. PRD/US **본문에 CLI 명령·계정 코드 패턴을 쓰지 않는다.**
    - 나쁨: `txn add로 Expenses:Tax:*에 기록한다`
    - 좋음: `세금 비용·납부 전표로 따로 기록한다`
@@ -104,7 +104,7 @@ related:
 
 PR 본문의 `Plan:`에 저장소 기준 구현계획 경로를 적는다.
 
-`Plan: apps/docs/content/docs/planning/plans/plan-<initiative>.mdx`
+`Plan: apps/docs/content/docs/development/plans/plan-<initiative>.mdx`
 
 검증기는 해당 파일이 PR의 base SHA에 이미 있는지 확인한다. 같은 PR에서 계획을 새로
 추가하면 통과하지 않는다.

@@ -3,7 +3,7 @@
   "pages": [
     "cli",
     "data-model",
-    "development"
+    "system-model"
   ],
   "collapsible": true,
   "defaultOpen": false
