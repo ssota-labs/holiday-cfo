@@ -1,3 +1,4 @@
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
@@ -15,9 +16,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   const MDX = page.data.body;
   const kind = docKindFromSlug(params.slug);
   const ticker = typeof page.data.ticker === 'string' ? page.data.ticker : undefined;
+  const toc = page.data.toc;
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage toc={toc} full={page.data.full}>
       <DocsTitle>
         <span className="inline-flex flex-wrap items-center gap-2">
           {kind ? <DocKind kind={kind} ticker={ticker} /> : null}
@@ -25,6 +27,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         </span>
       </DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      {toc.length > 0 ? <InlineTOC items={toc}>목차</InlineTOC> : null}
       <DocsBody>
         <MDX components={getMDXComponents({ a: createRelativeLink(source, page) })} />
       </DocsBody>
