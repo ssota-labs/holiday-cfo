@@ -27,7 +27,7 @@ SoR는 로컬 `.holiday/ledger.db`(SQLite). Postgres 엔진은 동일 논리 스
 
 | 종류 | 예 | 저장 |
 |---|---|---|
-| 사실 | txn, posting, fx_rate, assertion | 저널·테이블 |
+| 사실 | txn, posting, fx_rate, assertion, tax_return(+line) | 저널·테이블 |
 | 예측 | card, installment, recurring, recurring_income, loan schedules | 저널 밖 |
 | 파생 | balance, cashflow | 조회 시 집계 |
 

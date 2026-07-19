@@ -201,6 +201,26 @@ summary: 코드·정책·CLI가 같은 말로 말한다. 섹션별 Term.
   </Term>
 </Glossary>
 
+## 세금 신고
+
+<Glossary>
+  <Term term="tax return" ko="세금 신고서" code="tax_return · holiday tax return" notTo="Expenses:Tax 전표">
+    관측된 신고서 헤더+라인. 저널 밖 사실 테이블 (ADR-010). 납부 현금은 전표.
+  </Term>
+  <Term term="tax year" ko="귀속연도" code="tax_return.tax_year">
+    신고 대상 과세연도. 신고일(`filed_on`)과 다를 수 있다.
+  </Term>
+  <Term term="income amount" ko="소득금액" code="tax_return_line.key=income_amount">
+    종합소득세 세액계산의 소득금액(서식 ⑲). 관측값.
+  </Term>
+  <Term term="tax base" ko="과세표준" code="tax_return_line.key=tax_base">
+    소득금액 − 소득공제(서식 ㉑). 관측값 — CLI가 재계산하지 않는다.
+  </Term>
+  <Term term="revision" ko="신고 차수" code="tax_return.revision" notTo="덮어쓰기">
+    동일 귀속연도 수정신고는 +1 append. 이전 건은 superseded.
+  </Term>
+</Glossary>
+
 ## 수집
 
 <Glossary>

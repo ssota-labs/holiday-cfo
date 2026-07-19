@@ -1,0 +1,94 @@
+---
+title: tax return add
+description: holiday tax return add 명령 계약
+type: reference
+summary: 관측된 세금 신고서 헤더·라인을 SoR에 append한다. 세액 공식 없음.
+id: SPEC-tax-return-add
+stage: accepted
+related:
+  - /docs/planning/prds/prd-tax-return-sor
+  - /docs/features/tax
+  - /docs/planning/plans/plan-tax-return-sor
+---
+
+<SpecVersion
+  spec="CLI"
+  version="0.2.4"
+  source="packages/cli/src/cli.ts"
+  history={[
+    {
+      version: '0.2.4',
+      date: '2026-07-19',
+      summary: 'tax return add/list/show — 신고서 SoR',
+      ref: 'packages/cli/src/cli.ts',
+    },
+  ]}
+/>
+
+> 이 페이지는 **latest**다.
+
+관련 기능: [tax](/docs/features/tax)
+
+<CommandSpec
+  command="tax return add"
+  mutates={true}
+  summary="관측된 세금 신고서 헤더·라인을 SoR에 append한다. 세액 공식 없음."
+  signature={`holiday tax return add --year --filed-on --data-file [--form kr_global_income] [--amend] [--note] [--source]`}
+  flags={[
+    { name: '--year', type: 'number', required: true, description: '귀속연도 YYYY' },
+    { name: '--filed-on', type: 'YYYY-MM-DD', required: true, description: '신고일' },
+    { name: '--data-file', type: 'path', required: true, description: '라인 JSON 파일' },
+    { name: '--form', type: 'string', default: 'kr_global_income', description: '신고서 종류' },
+    { name: '--amend', type: 'boolean', description: '수정신고 — 새 revision append' },
+    { name: '--note', type: 'string' },
+    { name: '--source', type: 'path', description: '원본 파일 경로 — sha256 출처 기록' },
+  ]}
+  exits={[
+    { code: 0, meaning: '성공' },
+    { code: 1, meaning: 'duplicate_tax_return · domain 거부 · LedgerError' },
+    { code: 2, meaning: '사용법 오류 (UsageError)' },
+  ]}
+  example={`holiday tax return add --year 2025 --filed-on 2026-06-22 --data-file filing.json --json`}
+/>
+
+## `--data-file` 스키마
+
+```json
+{
+  "commodity": "KRW",
+  "columns": {
+    "global_income": {
+      "income_amount": "22144107",
+      "income_deduction": "2350580",
+      "tax_base": "19793527",
+      "tax_rate": "15.0",
+      "calculated_tax": "1709029",
+      "tax_reduction": "0",
+      "tax_credit": "70000",
+      "determined_tax_global": "1639029",
+      "determined_tax_separate": "0",
+      "determined_tax_total": "1639029",
+      "additional_tax": "107570",
+      "additional_tax_payable": "0",
+      "total_tax": "1746599",
+      "already_paid": "563323",
+      "net_tax": "1183276",
+      "payable_within_deadline": "1183276"
+    },
+    "rural_special": {
+      "tax_base": "0",
+      "tax_rate": "0.0",
+      "calculated_tax": "0",
+      "determined_tax_total": "0",
+      "net_tax": "0",
+      "payable_within_deadline": "0"
+    }
+  }
+}
+```
+
+- 금액은 **소수 문자열**(기능통화 minor로 파싱). `number` 금지.
+- `tax_rate`는 퍼센트 문자열(`"15.0"`). 스케일드 bigint로 저장.
+- 키가 빠진 라인은 저장하지 않는다. `kr_global_income`의 `global_income` 컬럼에는
+  `income_amount`·`tax_base`·`payable_within_deadline`이 **필수**.
+- CLI는 라인 간 산술 관계를 검증·수정하지 않는다 (관측 SoR).

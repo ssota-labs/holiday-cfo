@@ -1,0 +1,63 @@
+---
+title: PRD-tax-return-sor
+description: 세금 신고서를 원장 SoR로 보관한다
+type: conceptual
+period: 0.3 tax
+status: active
+stories:
+  - US-tax-return
+id: PRD-tax-return-sor
+changeType: product
+summary: 신고·납부한 세금의 소득금액·과세표준·세액을 관측값으로 DB에 남긴다.
+---
+
+## 문제
+
+지금까지 holiday는 세금을 **계정과 전표**로만 다룬다 (`Expenses:Tax:*`,
+`Assets:Receivable:Tax`). 통장에서 나간 금액과 비용으로 인식한 세금은 추적되지만,
+국세청에 신고한 **소득금액·과세표준·산출세액·기납부·자진납부** 같은 신고서 숫자는
+장부 밖에 있다. 연도별로 PDF·홈택스 화면을 뒤지거나 스프레드시트에 다시 적게 된다.
+
+세금 신고서는 예측이 아니라 **사실**이다. 원장이 현금·부채의 SoR인 것처럼, 신고서
+라인도 로컬 DB에 관측값으로 남아야 한다.
+
+## 목표
+
+- 귀속연도별 세금 신고서(헤더 + 라인)를 SQLite 원장에 저장한다
+- 1차 범위는 대한민국 **종합소득세** 세액계산 구간(소득금액·과세표준·세액 등)
+- CLI로 `add` / `list` / `show` — 에이전트가 `--json`·`--data-file`로 shell-out
+- 수정신고는 덮어쓰지 않고 **revision을 append**한다
+- 세율·세액 **공식을 추정하지 않는다** — 신고서에 찍힌 관측값만
+
+## Non-goals
+
+- 홈택스·홈택스 API·PDF OCR 자동 수집
+- 세액 산출 엔진·세율표·공제 한도 계산
+- 지방소득세·부가가치세·원천세 전용 폼 스키마 (form 코드만 열어 두고 1차는 종합소득세)
+- 신고서 라인과 `Expenses:Tax` 전표를 자동 대사·전기
+- 웹 UI·멀티유저 클라우드 SoR
+
+## 포함 스토리
+
+- [US-tax-return](/docs/planning/stories/us-tax-return)
+
+## 비기능
+
+- 금액은 i64 minor unit (`bigint`). 세율은 스케일드 bigint (ADR-003과 동일 정신)
+- 마이그레이션 append-only (POLICY-016)
+- 의존 방향: domain → port → store-sql → CLI. core는 어댑터를 import하지 않는다
+
+## 성공 지표
+
+- `holiday tax return add`로 샘플 종합소득세 세액계산 라인을 저장하고 `show`로 소득금액·과세표준을 읽는다
+- 동일 `(form, tax_year, revision)` 재등록은 거부한다
+- 수정신고는 revision+1로 append되고 이전 revision은 superseded
+- POLICY-018 테스트가 `check:rules`에 링크된다
+- 양쪽 `holiday-cfo` SKILL이 CLI와 정합 (`check:skill`)
+
+## 결과 계약
+
+- 기능: [tax](/docs/features/tax)
+- 스펙: [`tax return add`](/docs/spec/cli/tax/return-add) · [`list`](/docs/spec/cli/tax/return-list) · [`show`](/docs/spec/cli/tax/return-show)
+- 구현계획: [PLAN-tax-return-sor](/docs/planning/plans/plan-tax-return-sor)
+- ADR: [ADR-010](/docs/design/adr#ADR-010)

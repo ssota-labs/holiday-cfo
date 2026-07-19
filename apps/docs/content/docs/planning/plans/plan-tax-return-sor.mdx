@@ -1,0 +1,89 @@
+---
+title: PLAN-tax-return-sor
+description: 세금 신고서 SoR를 도메인·스키마·CLI에 추가한다
+type: guide
+summary: tax_return 테이블, POLICY-018, holiday tax return add/list/show.
+id: PLAN-tax-return-sor
+stage: ready
+changeType: product
+prd: PRD-tax-return-sor
+specs:
+  - SPEC-tax-return-add
+  - SPEC-tax-return-list
+  - SPEC-tax-return-show
+stories:
+  - US-tax-return
+codeAreas:
+  - packages/core
+  - packages/store-sqlite
+  - packages/store-postgres
+  - packages/store-sql
+  - packages/cli
+  - apps/docs
+  - plugins/claude-code
+  - plugins/codex
+related:
+  - /docs/planning/prds/prd-tax-return-sor
+  - /docs/features/tax
+  - /docs/spec/cli/tax/return-add
+  - /docs/design/adr
+---
+
+## 목표
+
+신고·납부한 세금의 소득금액·과세표준·세액 라인을 로컬 원장에 사실로 저장하고,
+CLI로 연도별 조회할 수 있게 한다.
+
+## 영향 범위
+
+| 영역 | 변경 |
+|---|---|
+| `packages/core` | `domain/tax.ts` + 테스트, port에 `TaxReturn` CRUD |
+| `packages/store-sqlite` | drizzle 스키마 + 마이그레이션 append |
+| `packages/store-postgres` | 동일 논리 스키마 미러 |
+| `packages/store-sql` | `LedgerStore` 구현 |
+| `packages/cli` | `tax return add/list/show` |
+| `apps/docs` | 기능·정책·용어·데이터모델·ADR-008 |
+| 플러그인 | SKILL + references에 명령 언급, 장부 AGENTS 문구 갱신 |
+
+## 구현 순서
+
+1. 도메인 타입·팩토리·불변식 (form/year/revision, line keys, 관측값만)
+2. POLICY-018 테스트 고정 후 policy.mdx 링크
+3. SQLite/Postgres 스키마·마이그레이션 (`tax_return`, `tax_return_line`)
+4. port + `store-sql` 구현
+5. CLI `tax return add|list|show` (`--data-file` JSON)
+6. 장부 템플릿 AGENTS.md·양쪽 SKILL 정합
+7. docs latest CLI 인덱스·data-model·glossary 갱신
+8. `pnpm build` · 관련 테스트 · `check:rules` · `holiday-plugin` skill check
+
+## 검증 계획
+
+### 자동 테스트
+
+- 유효한 종합소득세 라인 세트 저장·조회
+- 소득금액·과세표준 키 누락 시 domain 거부 (필수 키 집합)
+- duplicate `(form, year, revision)` 거부
+- amend → revision+1, 이전 status=superseded
+- 금액 bigint 라운드트립 (`2^53+1` 포함하지 않더라도 i64 경로 유지)
+- 세액 공식을 CLI/도메인이 적용하지 않음 (입력 ≠ 계산 결과여도 저장)
+
+### 저장소 검증
+
+- `pnpm --filter @holiday-cfo/core test`
+- `pnpm --filter @holiday-cfo/store-sqlite test`
+- `pnpm --filter holiday-plugin test`
+- `pnpm --filter docs run check:rules`
+- `pnpm build` · `pnpm typecheck` · `pnpm lint`
+
+## 호환성과 롤백
+
+- 기존 원장은 마이그레이션으로 테이블만 추가 — 전표·스케줄 불변
+- 표준 차트 세금 계정 문구는 “전표 = 납부/비용, 신고서 = tax return”으로 갱신
+- 롤백은 마이그레이션을 되돌리지 않는다(POLICY-016). 기능 플래그 없이 CLI 명령만 제거하면 테이블은 남는다
+
+## 완료 조건
+
+- `holiday tax return show 2025 --json`이 소득금액·과세표준을 반환한다
+- POLICY-018이 `check:rules`를 통과한다
+- 이 계획의 `stage`를 `done`으로 올릴 수 있다

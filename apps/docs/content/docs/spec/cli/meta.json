@@ -17,6 +17,7 @@
     "ingest",
     "review",
     "cashflow",
+    "tax",
     "verify",
     "checkpoint",
     "0.1.0"

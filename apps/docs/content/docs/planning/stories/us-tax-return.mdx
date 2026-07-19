@@ -1,0 +1,28 @@
+---
+title: US-tax-return
+description: 신고한 세금의 소득금액·과세표준을 장부에 남기고 싶다
+type: conceptual
+summary: 관측된 신고서 라인이 SoR에 append된다
+id: US-tax-return
+---
+
+**As a** 1인 사용자  
+**I want** 신고·납부한 세금의 소득금액·과세표준·세액을 장부에 남기고 싶다  
+**So that** 연도별 세무 이력을 PDF 없이 조회할 수 있다
+
+### 수락 기준
+
+1. `tax return add`가 헤더(form·귀속연도·신고일·revision)와 라인(코드·금액/세율)을 원자적으로 저장한다
+2. 금액·세율은 신고서 관측값만 — CLI가 세액을 계산하거나 검증 공식으로 고치지 않는다
+3. `tax return show <year>`가 소득금액·과세표준·납부할세액 등 주요 키를 JSON으로 돌려준다
+4. 같은 `(form, tax_year, revision)` 재등록 → `duplicate_tax_return`
+5. `--amend`는 새 revision을 append하고 직전 current를 superseded로 표시한다
+6. 신고서 저장은 전표를 만들지 않는다 — 납부는 기존처럼 `txn add` + `Expenses:Tax:*`
+
+### 추적
+
+- 기능: [tax](/docs/features/tax)
+- 스펙: [`tax return add`](/docs/spec/cli/tax/return-add) · [`list`](/docs/spec/cli/tax/return-list) · [`show`](/docs/spec/cli/tax/return-show)
+- 검증: POLICY-018
+- PRD: [PRD-tax-return-sor](/docs/planning/prds/prd-tax-return-sor)
+- 구현계획: [PLAN-tax-return-sor](/docs/planning/plans/plan-tax-return-sor)

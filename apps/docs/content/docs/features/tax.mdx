@@ -1,0 +1,31 @@
+---
+title: 세금 신고
+description: 신고서 라인을 원장 SoR로 보관
+type: guide
+summary: 관측값만. 세액 공식 없음. 납부 전표와는 별개.
+---
+
+## 수락 기준
+
+1. 신고서 헤더 + 라인 append ([POLICY-018](/docs/domain/policy#POLICY-018))
+2. 동일 `(form, tax_year, revision)` 거부
+3. 수정신고는 revision append + 이전 superseded
+4. 세액·공제 공식 추정 없음 — 관측값만
+5. 저장이 전표를 만들지 않음 (납부는 `txn` + `Expenses:Tax:*`)
+
+## 스펙
+
+[return add](/docs/spec/cli/tax/return-add) · [return list](/docs/spec/cli/tax/return-list) · [return show](/docs/spec/cli/tax/return-show)
+
+## 스토리
+
+[US-tax-return](/docs/planning/stories/us-tax-return)
+
+## 계정과의 관계
+
+| 질문 | 보는 곳 |
+|---|---|
+| 통장에서 나간 세금 / 비용으로 잡은 세금 | `Expenses:Tax:*`, `Assets:Receivable:Tax`, `Liabilities:Payable:Tax` |
+| 신고서의 소득금액·과세표준·결정세액 | `holiday tax return show` |
+
+둘은 다른 질문이다. 신고서 SoR가 생겨도 전표 규칙은 그대로다.
