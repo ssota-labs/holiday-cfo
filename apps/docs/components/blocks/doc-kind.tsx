@@ -18,25 +18,34 @@ const KIND_STYLE: Record<DocKindName, string> = {
 export function DocKind({
   kind,
   ticker,
+  href,
   className,
 }: {
   kind: DocKindName;
   /** Short key shown in the badge, e.g. `prd-001`. */
   ticker?: string;
+  /** When set, the badge is a link (e.g. PRD column on story indexes). */
+  href?: string;
   className?: string;
 }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide',
-        ticker ? 'normal-case' : 'uppercase',
-        KIND_STYLE[kind],
-        className,
-      )}
-    >
-      {ticker ?? kind}
-    </span>
+  const classNames = cn(
+    'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide no-underline',
+    ticker ? 'normal-case' : 'uppercase',
+    KIND_STYLE[kind],
+    href ? 'hover:opacity-80' : null,
+    className,
   );
+  const label = ticker ?? kind;
+
+  if (href) {
+    return (
+      <a href={href} className={classNames}>
+        {label}
+      </a>
+    );
+  }
+
+  return <span className={classNames}>{label}</span>;
 }
 
 /** Infer kind from a docs URL slug path (e.g. `planning/prds/prd-tax-return-sor`). */
