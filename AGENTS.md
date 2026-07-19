@@ -34,7 +34,7 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 ## 개발 전 기획 게이트
 
 `apps/docs`가 기획의 단일 진실이다. 구현 코드를 먼저 고치고 문서를 역기록하지 마라.
-절차·**작성 기준(비개발자 독자)** 은 `apps/docs/content/docs/planning/workflow.mdx`,
+절차·**작성 기준(비개발자 독자)** 은 `apps/docs/content/docs/workflow.mdx`,
 기계 계약은 `apps/docs/content/docs/spec/development/docs-first-workflow.mdx`를 따른다.
 
 1. 작업을 시작하면 기존 PRD·스펙·구현계획이 요청을 충분히 설명하는지 먼저 확인한다.
@@ -71,7 +71,7 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 - 제품명(`holiday`)을 문장 주어로 반복하지 마라. CLI·경로에만 쓴다.
 - **필수:** im-not-ai (`humanize` / `humanize-korean`). 기획 한글 초안 → `/humanize` →
   반영 → 리뷰. 스킵 금지.
-- 템플릿: `apps/docs/templates/`. 절차 전문: `apps/docs/content/docs/planning/workflow.mdx`.
+- 템플릿: `apps/docs/templates/`. 절차 전문: `apps/docs/content/docs/workflow.mdx`.
 
 docs-only 변경은 선행 계획이 없어도 된다. 그 밖의 일반 우회 표식은 없다.
 

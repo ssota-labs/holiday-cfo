@@ -2,6 +2,7 @@
   "title": "holiday",
   "pages": [
     "index",
+    "workflow",
     "planning",
     "domain",
     "features",
