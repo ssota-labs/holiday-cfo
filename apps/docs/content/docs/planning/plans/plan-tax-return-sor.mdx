@@ -4,15 +4,16 @@ description: 세금 신고서 SoR를 도메인·스키마·CLI에 추가한다
 type: guide
 summary: tax_return 테이블, POLICY-018, holiday tax return add/list/show.
 id: PLAN-tax-return-sor
+ticker: plan-002
 stage: ready
 changeType: product
-prd: prd-003
+prd: PRD-tax-return-sor
 specs:
   - SPEC-tax-return-add
   - SPEC-tax-return-list
   - SPEC-tax-return-show
 stories:
-  - us-015
+  - US-tax-return
 codeAreas:
   - packages/core
   - packages/store-sqlite
@@ -23,7 +24,7 @@ codeAreas:
   - plugins/claude-code
   - plugins/codex
 related:
-  - /docs/planning/prds/prd-003
+  - /docs/planning/prds/prd-tax-return-sor
   - /docs/features/tax
   - /docs/spec/cli/tax/return-add
   - /docs/design/adr

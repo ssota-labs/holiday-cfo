@@ -14,12 +14,13 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
 
   const MDX = page.data.body;
   const kind = docKindFromSlug(params.slug);
+  const ticker = typeof page.data.ticker === 'string' ? page.data.ticker : undefined;
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>
         <span className="inline-flex flex-wrap items-center gap-2">
-          {kind ? <DocKind kind={kind} /> : null}
+          {kind ? <DocKind kind={kind} ticker={ticker} /> : null}
           {page.data.title}
         </span>
       </DocsTitle>

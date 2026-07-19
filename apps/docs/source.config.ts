@@ -39,6 +39,10 @@ export const docs = defineDocs({
       status: z.enum(['draft', 'active', 'done']).optional(),
       /** Story IDs included in a PRD. */
       stories: z.array(z.string()).optional(),
+      /** Stable document id (long descriptive), e.g. `PRD-tax-return-sor`. */
+      id: z.string().optional(),
+      /** Short ticker for badges, e.g. `prd-001`. */
+      ticker: z.string().optional(),
     }),
   },
   meta: { schema: metaSchema },

@@ -7,24 +7,24 @@ summary: 원장 세팅 → 스케줄·수집 → 현금흐름·마감.
 
 ## J1. 원장 세팅
 
-1. [us-001](/docs/planning/stories/us-001) — `init`
-2. [us-002](/docs/planning/stories/us-002) — 현금·카드 계정
-3. [us-003](/docs/planning/stories/us-003) — 첫 거래
-4. [us-013](/docs/planning/stories/us-013) — 체인 확인
+1. [US-ledger-init](/docs/planning/stories/us-ledger-init) — `init`
+2. [US-accounts](/docs/planning/stories/us-accounts) — 현금·카드 계정
+3. [US-txn](/docs/planning/stories/us-txn) — 첫 거래
+4. [US-verify](/docs/planning/stories/us-verify) — 체인 확인
 
 명령 열: `init` → `account add` → `txn add` → `verify`
 
 ## J2. 스케줄과 수집
 
-1. [us-004](/docs/planning/stories/us-004)
-2. [us-005](/docs/planning/stories/us-005) / [us-006](/docs/planning/stories/us-006) / [us-007](/docs/planning/stories/us-007) / [us-008](/docs/planning/stories/us-008)
-3. [us-009](/docs/planning/stories/us-009)
-4. [us-010](/docs/planning/stories/us-010) (외화 시)
+1. [US-cards](/docs/planning/stories/us-cards)
+2. [US-installments](/docs/planning/stories/us-installments) / [US-recurring](/docs/planning/stories/us-recurring) / [US-income](/docs/planning/stories/us-income) / [US-loans](/docs/planning/stories/us-loans)
+3. [US-ingest-review](/docs/planning/stories/us-ingest-review)
+4. [US-fx](/docs/planning/stories/us-fx) (외화 시)
 
 ## J3. 현금흐름과 마감
 
-1. [us-012](/docs/planning/stories/us-012)
-2. [us-011](/docs/planning/stories/us-011)
-3. [us-013](/docs/planning/stories/us-013)
+1. [US-cashflow-short](/docs/planning/stories/us-cashflow-short)
+2. [US-close-assert](/docs/planning/stories/us-close-assert)
+3. [US-verify](/docs/planning/stories/us-verify)
 
 명령 열: `assert` → `close [--dry-run]` → `cashflow` → `verify`

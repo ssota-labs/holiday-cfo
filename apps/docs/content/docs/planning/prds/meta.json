@@ -1,9 +1,9 @@
 {
   "title": "PRDs",
   "pages": [
-    "prd-001",
-    "prd-002",
-    "prd-003"
+    "prd-0.1-foundation",
+    "prd-docs-first-development",
+    "prd-tax-return-sor"
   ],
   "collapsible": true,
   "defaultOpen": false,

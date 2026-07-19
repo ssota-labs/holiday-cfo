@@ -1,8 +1,8 @@
 import { cn } from '@/lib/cn';
 
 /**
- * Document-kind ticker for planning artifacts (PRD / US / PLAN) and related IDs.
- * Used on index tables and page titles so type is visible without sidebar nesting.
+ * Document-kind badge for planning artifacts (PRD / US / PLAN) and related IDs.
+ * Prefer `ticker` (e.g. `prd-001`) on index tables and titles; fall back to kind.
  */
 export const DOC_KINDS = ['PRD', 'US', 'PLAN', 'SPEC', 'ADR'] as const;
 export type DocKindName = (typeof DOC_KINDS)[number];
@@ -17,20 +17,24 @@ const KIND_STYLE: Record<DocKindName, string> = {
 
 export function DocKind({
   kind,
+  ticker,
   className,
 }: {
   kind: DocKindName;
+  /** Short key shown in the badge, e.g. `prd-001`. */
+  ticker?: string;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide uppercase',
+        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide',
+        ticker ? 'normal-case' : 'uppercase',
         KIND_STYLE[kind],
         className,
       )}
     >
-      {kind}
+      {ticker ?? kind}
     </span>
   );
 }
