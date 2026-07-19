@@ -66,6 +66,8 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 - 무엇을 저장·조회하는지 **사람 이름 + 예시 값** 표로 푼다.
 - 수락 기준·성공 지표는 목록만 쓴다. `기획/비개발자가 확인할…` 같은 메타 안내는
   본문에 넣지 않는다 (절차는 workflow·AGENTS에만).
+- PRD/US 본문에 CLI 명령·계정 코드(`txn add`, `Expenses:Tax:*`)를 넣지 마라.
+  기능·스펙에 두고 링크로만 연결한다.
 - 제품명(`holiday`)을 문장 주어로 반복하지 마라. CLI·경로에만 쓴다.
 - **필수:** im-not-ai (`humanize` / `humanize-korean`). 기획 한글 초안 → `/humanize` →
   반영 → 리뷰. 스킵 금지.

@@ -26,17 +26,16 @@ ticker: us-015
 ### 수락 기준
 
 1. 표지와 세액표 숫자를 **한 번에** 저장한다. 표지만 남거나 숫자만 남는 중간 상태는 없다
-2. 저장하는 금액·세율은 **신고서에 찍힌 값만**이다. CLI가 세액을 계산하거나 “틀린 것 같다”며 고치지 않는다
+2. 저장하는 금액·세율은 **신고서에 찍힌 값만**이다. 세액을 계산하거나 “틀린 것 같다”며 고치지 않는다
 3. 귀속연도로 조회하면 소득금액·과세표준·납부할세액 등 주요 칸을 읽을 수 있다
 4. 같은 신고서 종류·같은 귀속연도·같은 차수를 다시 넣으면 **거절**한다 (실수로 두 번 넣지 않도록)
 5. 수정신고는 이전 기록을 지우지 않는다. **새 차수를 추가**하고, 이전 차수는 “대체됨”으로 표시한다
-6. 신고서 저장만으로 통장/비용 **전표가 생기지 않는다**. 실제 납부는 기존처럼 `txn add`와 `Expenses:Tax:*`로 한다
-
-검증: [POLICY-021](/docs/domain/policy#POLICY-021)
+6. 신고서 저장만으로 통장/비용 **전표가 생기지 않는다**. 실제 납부는 기존처럼 **세금 비용·납부 전표**로 따로 한다
 
 ### 추적
 
 - 기능: [tax](/docs/features/tax)
 - 스펙: [`tax return add`](/docs/spec/cli/tax/return-add) · [`list`](/docs/spec/cli/tax/return-list) · [`show`](/docs/spec/cli/tax/return-show)
+- 검증: [POLICY-021](/docs/domain/policy#POLICY-021)
 - PRD: [prd-tax-return-sor](/docs/planning/prds/prd-tax-return-sor)
 - 구현계획: [plan-tax-return-sor](/docs/planning/plans/plan-tax-return-sor)
