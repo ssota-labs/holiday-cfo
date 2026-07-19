@@ -1,6 +1,6 @@
 {
   "name": "@holiday-cfo/store-d1",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ssota-labs/holiday.git",
+    "url": "git+https://github.com/ssota-labs/holiday-cfo.git",
     "directory": "packages/store-d1"
   }
 }
