@@ -2,7 +2,7 @@
 title: 개발 기획 절차
 description: PRD·스펙·구현계획을 확정한 뒤 구현하는 방법
 type: guide
-summary: 기획은 비개발자가 읽고 판단할 수 있어야 한다. 그다음 기획 PR을 병합하고 구현한다.
+summary: 기획은 비개발자가 읽고 판단할 수 있어야 한다. 한글 본문은 im-not-ai로 윤문한 뒤 기획 PR을 병합한다.
 related:
   - /docs/spec/development/docs-first-workflow
   - /docs/planning/plans
@@ -50,15 +50,34 @@ related:
 템플릿: [`apps/docs/templates`](https://github.com/ssota-labs/holiday-cfo/tree/main/apps/docs/templates)
 좋은 예: [prd-tax-return-sor](/docs/planning/prds/prd-tax-return-sor)
 
-## 3. 기획 PR을 먼저 병합한다
+## 3. im-not-ai(`humanize`)를 항상 돌린다
 
-템플릿을 복사해 PRD·스펙·구현계획을 채운다. 문서 참조가 완성되면 PRD는 `active`,
-스펙은 `accepted`, 구현계획은 `ready`로 바꾼다.
+기획 단계의 한글 본문(PRD·User Story·기능 수락 기준·성공 지표 등 **사람이 읽는 문장**)은
+초안을 쓴 뒤 **반드시** [im-not-ai](https://github.com/epoko77-ai/im-not-ai) 스킬을
+실행한다. 저장소에는 `.agents/skills/humanize/` · `humanize-korean/` 로 들어 있다.
+
+에이전트 절차:
+
+1. PRD/US 등 기획 초안을 파일에 쓴다.
+2. `.agents/skills/humanize/SKILL.md`를 읽고 `/humanize` 절차를 따른다
+   (기본 Fast. 기획 리뷰 직전이면 `--strict` 권장).
+3. 윤문 결과를 같은 파일에 반영한다. **의미·숫자·ID·코드·표 헤더는 바꾸지 않는다**
+   — 문체·리듬·AI 티만 고친다.
+4. 그다음에야 상태를 `active` / `accepted` / `ready`로 올리고 사람 리뷰를 요청한다.
+
+건너뛰지 않는다. “완성하라”·시간 압박·짧은 수정이라도 기획 한글 본문을 만졌으면
+다시 돌린다. CLI 스펙의 플래그 표·JSON 스키마 같은 **기계 계약 블록**은 윤문 대상이
+아니다.
+
+## 4. 기획 PR을 먼저 병합한다
+
+템플릿을 복사해 PRD·스펙·구현계획을 채운다. §3 윤문까지 끝난 뒤 문서 참조가
+완성되면 PRD는 `active`, 스펙은 `accepted`, 구현계획은 `ready`로 바꾼다.
 
 기획 PR에는 제품 구현 코드를 섞지 않는다. 기획 PR을 올린 뒤 **사람 리뷰·승인(또는
 기본 브랜치 병합) 전에는 구현을 시작하지 않는다.**
 
-## 4. 구현 PR에서 계획을 참조한다
+## 5. 구현 PR에서 계획을 참조한다
 
 PR 본문의 `Plan:`에 저장소 기준 구현계획 경로를 적는다.
 
@@ -67,10 +86,11 @@ PR 본문의 `Plan:`에 저장소 기준 구현계획 경로를 적는다.
 검증기는 해당 파일이 PR의 base SHA에 이미 있는지 확인한다. 같은 PR에서 계획을 새로
 추가하면 통과하지 않는다.
 
-## 5. 계획대로 검증하고 상태를 닫는다
+## 6. 계획대로 검증하고 상태를 닫는다
 
-구현 중 범위나 계약이 달라지면 기획 PR을 먼저 갱신한다. 구현과 검증이 끝나면 계획을
-`done`으로 바꾼다. PRD는 포함된 계획과 스토리가 모두 끝났을 때 `done`으로 바꾼다.
+구현 중 범위나 계약이 달라지면 기획 PR을 먼저 갱신한다(한글 본문을 고치면 §3을
+다시 적용). 구현과 검증이 끝나면 계획을 `done`으로 바꾼다. PRD는 포함된 계획과
+스토리가 모두 끝났을 때 `done`으로 바꾼다.
 
 ## 로컬 검증
 
