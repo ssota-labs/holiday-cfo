@@ -1,0 +1,38 @@
+---
+title: 대시보드
+description: 장부 숫자의 스냅샷 화면. 배치는 페이지로, 금액은 bake로.
+type: explanation
+summary: 라이브 웹앱이 아니다. CLI가 구운 스냅샷을 닫힌 칸으로 보여 준다.
+related:
+  - /docs/planning/prds/prd-dash-mdx-shell
+  - /docs/spec/dash-mdx-shell
+  - /docs/development/adr/adr-008
+  - /docs/development/adr/adr-012
+---
+
+장부 화면(dash)은 **사진**이다. 장부를 브라우저가 직접 열지 않고, CLI가 한
+시점에 구운 숫자 스냅샷을 읽는다.
+
+## 역할 분리
+
+| 누가 | 무엇을 |
+|---|---|
+| CLI (`dash data`) | 잔액·현금 여유·장부 건강 스냅샷 |
+| 사용자/에이전트 | 페이지 배치·설명 문장 |
+| 닫힌 칸 | 스냅샷만 읽어 표·런웨이·분류 대기를 그림 |
+
+로컬 미리보기에서만 분류 대기를 클릭으로 처리한다. 배포본은 읽기 전용이다
+([ADR-008](/docs/development/adr/adr-008)).
+
+## 작성 모델 (계획)
+
+배치 정본을 JSON 한 장에서 **MDX 페이지 트리**로 옮기는 방향이다
+([prd-dash-mdx-shell](/docs/planning/prds/prd-dash-mdx-shell),
+[ADR-012](/docs/development/adr/adr-012)). 문서 사이트(Fumadocs) 엔진을
+그대로 이식하지는 않는다.
+
+## 하지 않는 것
+
+- 라이브 잔액 구독
+- 화면에서 세액·할부 공식 재계산
+- 페이지에 금액을 다시 적어 “현재 잔액”처럼 보이게 하기

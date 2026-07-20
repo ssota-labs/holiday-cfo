@@ -1,0 +1,124 @@
+---
+title: Dash MDX 셸
+description: 장부 화면은 MDX 페이지 + CLI 스냅샷. Fumadocs 런타임 이식 금지.
+type: reference
+summary: 레이아웃은 MDX, 숫자는 ledger.json. 닫힌 컴포넌트. vinext 유지.
+id: SPEC-dash-mdx-shell
+stage: accepted
+related:
+  - /docs/planning/prds/prd-dash-mdx-shell
+  - /docs/development/adr/adr-008
+  - /docs/development/adr/adr-012
+  - /docs/features/dash
+---
+
+## 범위
+
+사용자 프로젝트의 **장부 화면(dash)** 작성·렌더 계약이다. 원장 스키마와
+복식 규칙은 바꾸지 않는다.
+
+이 스펙이 고르는 것:
+
+1. 화면 배치는 **MDX 페이지 트리**로 쓴다 (`spec.json` 단일 그래프를 대체하는
+   방향).
+2. 숫자는 `holiday dash data`가 구운 **스냅샷 파일**에서만 읽는다.
+3. 런타임은 기존처럼 **가벼운 vinext 템플릿**이다. `apps/docs`의 Fumadocs/Next
+   스택을 사용자 dash 폴더로 이식하지 않는다.
+4. [ADR-008](/docs/development/adr/adr-008) 조종석/사진 경계를 유지한다.
+
+## 인터페이스
+
+### CLI (관찰 가능)
+
+| 명령 | 역할 |
+|---|---|
+| `holiday dash init [--dir dash]` | 화면 템플릿 복사, 블록 패키지 버전 pin, 첫 스냅샷 bake |
+| `holiday dash data [--dir dash] [--until <date>]` | 스냅샷만 다시 bake. **페이지 MDX를 덮어쓰지 않는다** |
+
+페이지 파일은 사용자/에이전트가 쓴다. bake는 데이터 파일만 갱신한다.
+
+### 작성 어휘 (닫힌 칸)
+
+MDX에서 쓸 수 있는 도메인 칸은 `@holiday-cfo/blocks`가 허용하는 집합과 같다.
+금액·쓰기 액션 prop은 없다.
+
+| 칸(사람 이름) | 코드 타입 | 허용 prop 예 |
+|---|---|---|
+| 화면 틀 | `Dashboard` | 제목 |
+| 가로 줄 | `Row` | (자식만) |
+| 현금 여유 | `CashRunway` | 표시 일수 등 필터 |
+| 잔액표 | `BalanceTable` | 계정 접두어, 행 수 |
+| 장부 건강 | `LedgerHealth` | 없음 |
+| 분류 대기 | `CategorizeQueue` | 없음 |
+| 메모 | `Note` | 본문 문장(숫자 권장 금지) |
+
+목록 밖 타입은 **렌더하지 않고 실패**한다(조용한 빈 카드 금지).
+
+### 데이터
+
+| 사람이 읽는 이름 | 경로(예시) | 작성자 |
+|---|---|---|
+| 숫자 스냅샷 | `src/data/ledger.json` | `holiday dash data`만 |
+| 페이지 | `src/content/**/*.mdx` (또는 동등 트리) | 사용자/에이전트 |
+| 네비 | 폴더 구조 또는 `meta` 동등물 | 사용자/에이전트 |
+
+스냅샷 필드(사람 이름 → 코드 키):
+
+| 이름 | 키 | 예시 |
+|---|---|---|
+| 잔액 목록 | `balances[]` | `accountCode`, `commodity`, `unitsMinor`, `weightMinor` (문자열) |
+| 현금흐름 | `cashflow` | opening, runway rows, **gaps** |
+| 건강 | `health` | verify + audit head |
+| 구운 시각 | `bakedAt` | ISO 시각 |
+
+금액은 JSON 문자열로만 왕복한다. 화면 코드가 `Number(...)`로 파싱하지 않는다.
+
+## 동작
+
+1. **읽기:** 페이지 MDX → 허용 칸만 마운트 → 칸은 `DataProvider`로 스냅샷을 읽는다.
+2. **갱신:** 장부 변경 후 `holiday dash data`. 페이지 트리는 그대로.
+3. **로컬 쓰기:** 분류 대기 클릭 → `/api/holiday/*` → CLI → 필요 시 재 bake.
+4. **배포:** 정적 호스트. 쓰기 API 없음. 실패 안내로 접힌다.
+
+### 숫자 리터럴 금지 (강제)
+
+- 칸 props에 금액 필드가 없다 (타입/스키마로 거부).
+- 본문 마크다운의 숫자 문장은 **메모**일 뿐 스냅샷과 동기화되지 않는다.
+  에이전트 안내는 “금액을 페이지에 다시 쓰지 말 것”을 유지한다.
+- (선택·구현 단계에서) 본문의 통화형 리터럴을 lint로 경고해도 된다. 수락의
+  최소선은 **권위 있는 숫자 UI로 승격되지 않는 것**이다.
+
+## 데이터와 불변식
+
+1. 스냅샷 bake는 한 `unitOfWork`에서 잔액·현금흐름·verify를 같이 읽는다.
+2. `cashflow.gaps`를 화면이 버려서 “여유 있음”으로 보이게 하지 않는다.
+3. dash는 `ledger.db`를 직접 열지 않는다.
+4. CLI와 `@holiday-cfo/blocks` / `@holiday-cfo/ui` 버전은 같은 릴리스 태그로 pin.
+
+## 오류
+
+| 상황 | 기대 |
+|---|---|
+| 알 수 없는 칸 타입 | 빌드 또는 런타임에서 실패(빈 카드 아님) |
+| 스냅샷 없음 | init/data를 안내하는 명확한 실패 |
+| 배포에서 분류 클릭 | 쓰기 불가 안내, 장부 불변 |
+| 구 버전 `spec.json`만 있는 폴더 | 이전 경로 또는 1회 마이그레이션 안내 |
+
+## 호환성
+
+- **채택:** MDX 페이지 트리가 정본 배치.
+- **거절(이 스펙):** Fumadocs/`apps/docs` Next 스택을 dash 템플릿으로 복사.
+- **이전:** 기존 `spec.json` 사용자는 한 메이저(또는 명시 마이그레이션) 동안
+  병행 또는 변환 도구를 제공한다. 세부 단계는 구현계획.
+
+관련 결정: [ADR-012](/docs/development/adr/adr-012).
+
+## 수락 기준
+
+1. `dash init`으로 만든 폴더에서 MDX 페이지 2개 이상 + 스냅샷으로 로컬 미리보기가 된다
+2. `dash data`는 스냅샷만 갱신하고 사용자 MDX를 덮지 않는다
+3. 허용 목록 밖 칸 타입은 실패한다
+4. 칸 props로 금액을 넣을 수 없다
+5. 로컬 분류 대기 클릭 → CLI 경로가 동작한다
+6. 정적 배포본에서 쓰기가 되지 않는다
+7. 사용자 dash `package.json`에 `fumadocs-*` / `next`가 dash 런타임 의존으로 없다

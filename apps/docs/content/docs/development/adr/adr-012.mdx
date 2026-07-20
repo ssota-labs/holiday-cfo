@@ -1,0 +1,26 @@
+---
+title: ADR-012
+description: 장부 화면은 MDX 셸 + CLI 스냅샷. Fumadocs를 런타임으로 이식하지 않는다
+type: decision
+summary: 작성 모델만 docs와 맞추고, dash 런타임은 vinext·닫힌 블록·스냅샷을 유지한다.
+---
+
+<Decision
+  id="ADR-012"
+  title="장부 화면은 MDX 셸 + CLI 스냅샷. Fumadocs 런타임 이식 금지"
+  status="accepted"
+  date="2026-07-20"
+  rejected={[
+    { option: 'dash를 Fumadocs/Next 문서 사이트로 교체', because: '문서 사이트는 정책·기획용 컴파일러다. SSG 컬렉션·DocsLayout·모노레포 Next 스택을 사용자 화면 폴더에 끌어오면 무게가 커지고, Codex Sites/vinext 사진 배포 경로와 어긋난다. 라이브 장부 UI처럼 보이기 쉬워 Vision의 “웹 대시보드를 제품으로” 거부와도 충돌한다.' },
+    { option: 'MDX 본문에 CLI가 금액을 하드코딩해 넣기', because: '페이지를 사람이 고치는 순간 어제 숫자가 권위 있게 남는다. 스냅샷 파일과 칸이 숫자를 읽고, 페이지는 배치만 맡는 편이 안전하다.' },
+    { option: '자유 React/MDX에 금액 prop 허용', because: '닫힌 카탈로그가 막던 “틀린 숫자가 그럴듯한 카드로 보이는” 사고를 다시 연다. 포트가 불균형을 표현하지 못하는 것과 같은 계층의 안전이다.' },
+    { option: 'json-render spec.json을 영구 정본으로 유지', because: '다중 페이지·문장+칸 혼용·사람이 읽기 쉬운 배치에 한계가 있다. 작성 표면만 MDX로 바꾸고 숫자 경계는 그대로 둔다.' },
+  ]}
+>
+문서 사이트가 주는 가치는 **페이지 파일 + 등록된 커스텀 칸**이다. 장부 화면도
+그 작성 모델을 쓴다. 런타임은 vinext 템플릿과 `@holiday-cfo/blocks`를 유지하고,
+숫자는 `holiday dash data` 스냅샷만 읽는다.
+
+[ADR-008](/docs/development/adr/adr-008)의 로컬 조종석 / 배포 사진 경계는
+그대로다. 쓰기는 카탈로그에 올리지 않고, 로컬 API → CLI만 통과한다.
+</Decision>
