@@ -1,10 +1,10 @@
-import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { DocKind, docKindFromSlug } from '@/components/blocks/doc-kind';
+import { DocsInlineToc } from '@/components/docs-inline-toc';
 import { getMDXComponents } from '@/components/mdx';
 import { adrFooterItems, source } from '@/lib/source';
 
@@ -32,7 +32,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         </span>
       </DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
-      {toc.length > 0 ? <InlineTOC items={toc}>목차</InlineTOC> : null}
+      <DocsInlineToc items={toc} />
       <DocsBody>
         <MDX components={getMDXComponents({ a: createRelativeLink(source, page) })} />
       </DocsBody>
