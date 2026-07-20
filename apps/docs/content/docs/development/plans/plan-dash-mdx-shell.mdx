@@ -1,8 +1,8 @@
 ---
 title: plan-dash-mdx-shell
-description: dash에 Fumadocs식 MDX 계약 + 대시보드 칸을 붙인다. DocsLayout은 이식하지 않는다
+description: dash 템플릿을 fumadocs로 교체하고 json-render를 제거한다
 type: guide
-summary: getMDXComponents형 등록, blocks를 MDX 태그로, vinext·스냅샷 유지.
+summary: fumadocs 테마 + UI/블록 MDX 등록 + API. vinext/json-render 경로 폐기.
 id: plan-dash-mdx-shell
 ticker: plan-009
 stage: ready
@@ -28,79 +28,89 @@ related:
 
 ## 목표
 
-[prd-dash-mdx-shell](/docs/planning/prds/prd-dash-mdx-shell)대로 장부 화면에
-문서 사이트와 같은 MDX 등록·타입 계약을 두고, 레지스트리에 대시보드 칸을
-추가한다. 숫자는 CLI 스냅샷만 쓴다. DocsLayout/Next 문서 파이프라인은
-이식하지 않는다. 결정 본문은 [ADR-012](/docs/development/adr/adr-012).
+[prd-dash-mdx-shell](/docs/planning/prds/prd-dash-mdx-shell)대로 사용자
+`dash/`를 fumadocs 앱으로 교체한다. fumadocs 기본 테마·컴포넌트,
+`@holiday-cfo/ui` 셸, `@holiday-cfo/blocks`를 대시보드와 MDX에 등록하고,
+json-render/`spec.json`을 제거한다. 숫자는 API·bake. 결정은
+[ADR-012](/docs/development/adr/adr-012).
 
 ## 영향 범위
 
 | 영역 | 변경 |
 |---|---|
-| `packages/cli/templates/dash/` | MDX 페이지 트리 + 렌더 엔트리. `spec.json` 경로 정리 |
-| `packages/cli/src/dash.ts` | init/data가 MDX를 덮지 않음. bake 계약 유지 |
-| `packages/blocks` | MDX에서 쓸 컴포넌트 export·스키마. 금액 prop 없음 유지 |
-| `plugins/*/skills/holiday-cfo/` | 대시보드 안내를 MDX 페이지 작성으로 갱신 |
-| `apps/docs` | 본 기획·스펙·ADR·기능 페이지 (이 PR). 구현 PR에서 스펙 이력만 |
+| `packages/cli/templates/dash/` | vinext 템플릿 → fumadocs(Next) 템플릿. content MDX, `/dashboard`, API, `getMDXComponents` |
+| `packages/cli/src/dash.ts` | scaffold/bake가 MDX·대시보드 소스를 덮지 않음. 설명 문구 갱신 |
+| `packages/cli/src/cli.ts` | `dash init` 설명(vinext → fumadocs) |
+| `packages/blocks` | json-render 의존 제거. MDX/대시보드용 컴포넌트·데이터 컨텍스트 export. 금액 prop 없음 유지 |
+| `packages/ui` | dash/MDX에 노출할 셸 칸 re-export 또는 문서화(필요 시) |
+| `plugins/*/skills/holiday-cfo/` | dash 안내를 fumadocs·MDX·API·`dash data`로 갱신 |
+| `apps/docs` | 본 기획·스펙·ADR·기능 페이지 (이 PR). 구현 PR에서 스펙 이력·비전 문구 정합 |
 
 ## 구현 순서
 
-1. **스파이크(짧게):** vinext에서 `getMDXComponents`형 레지스트리 + MDX 한 페이지가
-   스냅샷을 읽는지 확인. 컴파일러는 `@mdx-js` Vite 경로를 기본으로 두고,
-   `fumadocs-mdx`를 얇게 쓸지는 의존 무게·vinext 호환을 보고 고른다.
-   `fumadocs-ui` / `next`는 dash 의존에 넣지 않는다.
-2. dash용 frontmatter Zod와 기본 페이지(`index` + 예시 두 번째 페이지)·네비를 정한다.
-3. `@holiday-cfo/blocks`를 MDX 태그로 등록한다 (`CashRunway` 등). json-render
-   flat graph는 내부 구현이든 폐기든 한 경로로 정리한다(외부 계약은 MDX 등록).
-4. `dash init` / `dash data` — 데이터 bake만, 사용자 MDX non-clobber.
-5. `spec.json` 호환: 변환 스크립트 또는 한 버전 병행 로드 중 하나를 고른다.
-6. 스킬·`AGENTS.md` — “숫자 쓰지 말 것”, 페이지 추가 방법, `dash data` 갱신.
-7. 테스트: bake 불변식, 알 수 없는 태그 실패, MDX non-clobber, 로컬 categorize
-   경로 스모크.
-8. 사용자-facing 배포는 후속 릴리스 계획으로 버전 bump + `v*` 태그
-   (이 구현 PR에 public 버전을 섞지 않는다 — 릴리스 계획과 분리).
+1. **템플릿 스파이크:** 최소 fumadocs 앱이 `dash init` 산출물로 뜨는지 확인.
+   기본 테마 + content 한 페이지 + `/dashboard` 빈 골격.
+2. **레지스트리:** `getMDXComponents`에 fumadocs 기본 + 선정 UI 칸 + 가계부
+   블록 등록. 미등록 태그 실패.
+3. **데이터:** `DataProvider`/동등 컨텍스트가 API(로컬) 또는 bake JSON(배포)을
+   읽게 한다. snapshot API = bake와 동형 스키마.
+4. **API 라우트:** pending / categorize 유지·이전, snapshot GET 추가. CLI 셸,
+   동시 open 락 주의(기존 순차 호출).
+5. **대시보드 페이지:** UI 셸 + 블록으로 기본 레이아웃(건강·런웨이·잔액·분류
+   대기). json-render `Renderer` 삭제.
+6. **blocks 정리:** `@json-render/*` 제거, catalog를 Zod/MDX 어휘 문서로
+   이전(에이전트용 AGENTS.md + 타입).
+7. **`dash init` / `dash data`:** non-clobber, 버전 pin, 첫 bake.
+8. **마이그레이션 안내:** 기존 `spec.json` dash → 새 템플릿. 변환 스크립트
+   또는 “다시 init + 페이지 이전” 중 하나를 고른다.
+9. **스킬·템플릿 AGENTS.md:** 숫자 금지, MDX 작성, API/`dash data`, 배포 사진.
+10. **테스트** 후 사용자-facing 배포는 후속 릴리스 계획으로 버전 bump + `v*`
+    태그 (이 구현 PR에 public 버전을 섞지 않는다).
 
 ## 검증 계획
 
 ### 자동 테스트
 
-- CLI dash bake / scaffold 테스트 (MDX 미덮어쓰기, 스냅샷 필드)
-- blocks: 금액 prop 스키마 거부, 미등록 타입 실패
-- `pnpm --filter holiday-plugin test` — 스킬이 주장하는 명령·플래그
+- CLI dash scaffold/bake: MDX non-clobber, 스냅샷 필드, 템플릿에 json-render
+  없음
+- blocks: 금액 prop 스키마 거부, 미등록 타입 실패, json-render import 없음
+- API 라우트 단위(가능하면): CLI mock으로 snapshot/pending/categorize
+- `pnpm --filter holiday-plugin test`
 - `pnpm --filter @holiday-cfo/docs check:planning`
 
 ### 수동 테스트 / 기획 체크
 
-1. scratch에서 `dash init` → 페이지 하나 더 추가 → `pnpm dev`로 두 페이지 확인
-2. 페이지에 금액 문장을 적어 두고, 잔액 칸 숫자와 섞여 “현재 잔액”처럼
-   보이지 않는지 확인
-3. 장부 변경 → `dash data` → 숫자만 바뀌고 페이지 문장 유지
-4. 로컬에서 분류 대기 클릭 → CLI 경로
-5. 정적 빌드에서 쓰기 불가 안내
-6. 사용자 dash `package.json`에 `fumadocs-ui` / `next` 없음
-   (`getMDXComponents`형 API와 `mdx/types`는 허용)
+1. scratch에서 `dash init` → fumadocs 테마, 메모 페이지 추가, `/dashboard` 숫자
+2. MDX에 `<CashRunway />`·UI Card 태그 → 렌더 확인
+3. 페이지에 금액 문장 → 권위 있는 잔액 UI로 안 보임
+4. 장부 변경 → `dash data` / API 재조회 → 글 유지·숫자 변경
+5. 로컬 분류 클릭 → CLI 경로
+6. 정적/배포 빌드에서 쓰기 불가
+7. 템플릿 `package.json`에 `@json-render/*` 없음
 
 ## 마이그레이션과 호환성
 
 - 원장 DB 마이그레이션 없음
-- 기존 `spec.json` dash: 변환 또는 병행 기간을 구현 PR에서 명시
-- 스냅샷 스키마는 기존 `ledger.json` 형태를 우선 유지. 깨면 메이저/릴리스 노트
+- vinext + `spec.json` 사용자는 새 템플릿으로 이전. 병행 기간이 있으면 구현
+  PR에 기한을 명시
+- bake `ledger.json` 스키마는 우선 유지. 깨면 릴리스 노트
+- Codex Sites/vinext 전제 문구(스킬·README)는 “읽기 전용 정적 산출”로 갱신
 
 ## 위험과 롤백
 
 | 위험 | 완화 |
 |---|---|
-| MDX에 숫자 리터럴 유혹 | props 차단 + 스킬 문구 + (선택) lint |
-| 에이전트가 과한 React를 씀 | 닫힌 레지스트리만 노출 |
-| DocsLayout/Next를 dash에 끌어오기 | ADR-012 — 채택은 MDX 계약, 거절은 사이트 런타임 |
-| MDX 계약을 무시하고 페이지별 import | 레지스트리-only + 미등록 태그 실패 테스트 |
-| vinext MDX 도구 마찰 | 스파이크를 순서 1로 고정 |
+| Next/fumadocs 무게·Node 요구 | 로컬 조종석 전제 명시. 배포는 정적 export 스파이크로 검증 |
+| MDX에 숫자 리터럴 | props 차단 + 스킬 + (선택) lint |
+| UI 칸을 너무 많이 열어 레이아웃 난립 | 등록 목록을 최소 집합으로 시작, AGENTS.md에 화이트리스트 |
+| Sites/vinext 사용자 경로 단절 | 스펙이 배포 전제 재정의 — 스킬·문서에 대체 호스트 안내 |
+| blocks에서 json-render 제거 파급 | 템플릿·스킬·테스트를 한 PR에서 맞춤 |
 
-롤백: 템플릿·스킬을 `spec.json` 경로로 되돌리면 된다. 원장 데이터 영향 없음.
+롤백: 템플릿·스킬을 이전 vinext 태그로 되돌리면 된다. 원장 데이터 영향 없음.
 
 ## 완료 조건
 
 1. [SPEC-dash-mdx-shell](/docs/spec/dash-mdx-shell) 수락 기준 전부 충족
-2. ADR-012가 accepted로 문서에 남아 있고 구현이 그것을 따른다
-3. 양쪽 스킬 안내가 MDX 작성 모델과 일치
+2. ADR-012가 accepted로 남아 있고 구현이 그것을 따른다
+3. 양쪽 스킬 안내가 fumadocs·MDX·API 모델과 일치
 4. 계획 stage → `done`
