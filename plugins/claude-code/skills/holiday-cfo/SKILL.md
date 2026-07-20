@@ -89,6 +89,7 @@ you need — each is a self-contained file. Schedule them via
 | **Simulate** | a big decision | `references/workflows/simulate.md` — `cashflow --spend/--receive`, nothing written |
 | **Ask** | anytime | `references/workflows/ask.md` — answer from the ledger; compute, don't give market advice |
 | **KR income** | 수입·원천징수·4대보험 | `references/workflows/kr-income.md` — statutory regimes; never invent 3.3%/보험요율 |
+| **Tax return** | 종합소득·부가세 신고서 | `references/workflows/tax-return.md` — observe filing numbers only; no tax formula |
 
 **Record directly with `holiday txn add`.** The review queue is for when you are
 genuinely unsure, not a default — the user asked not to approve every coffee, and a

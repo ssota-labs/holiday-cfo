@@ -405,6 +405,63 @@ export const incomeSettlementLine = pgTable(
   ],
 );
 
+/**
+ * Observed tax filing (종합소득 / 부가세). Header + tax_return_line cells.
+ * Not journal — no txn/posting FK. See ADR-010 / POLICY-021.
+ */
+export const taxReturn = pgTable(
+  'tax_return',
+  {
+    id: text('id').primaryKey(),
+    form: text('form').notNull(),
+    taxYear: integer('tax_year').notNull(),
+    period: text('period').notNull(),
+    filedOn: text('filed_on').notNull(),
+    revision: integer('revision').notNull(),
+    status: text('status').notNull(),
+    commodity: text('commodity')
+      .notNull()
+      .references(() => commodity.code),
+    note: text('note'),
+    sourcePath: text('source_path'),
+    sourceSha256: text('source_sha256'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('tax_return_unique').on(t.form, t.taxYear, t.period, t.revision),
+    uniqueIndex('tax_return_one_current')
+      .on(t.form, t.taxYear, t.period)
+      .where(sql`${t.status} = 'current'`),
+    index('tax_return_by_year').on(t.taxYear),
+    index('tax_return_by_form_year').on(t.form, t.taxYear),
+    check('tax_return_form_enum', sql`${t.form} IN ('kr_global_income','kr_vat')`),
+    check(
+      'tax_return_period_enum',
+      sql`${t.period} IN ('annual','H1_provisional','H1_final','H2_provisional','H2_final')`,
+    ),
+    check('tax_return_status_enum', sql`${t.status} IN ('current','superseded')`),
+    check('tax_return_revision_positive', sql`${t.revision} >= 1`),
+    check('tax_return_year_range', sql`${t.taxYear} BETWEEN 2000 AND 2100`),
+  ],
+);
+
+export const taxReturnLine = pgTable(
+  'tax_return_line',
+  {
+    returnId: text('return_id')
+      .notNull()
+      .references(() => taxReturn.id, { onDelete: 'cascade' }),
+    columnKey: text('column_key').notNull(),
+    lineKey: text('line_key').notNull(),
+    valueKind: text('value_kind').notNull(),
+    valueScaled: bigint('value_scaled', { mode: 'bigint' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'tax_return_line_pk', columns: [t.returnId, t.columnKey, t.lineKey] }),
+    check('tax_return_line_value_kind_enum', sql`${t.valueKind} IN ('amount','rate')`),
+  ],
+);
+
 export const fxRate = pgTable(
   'fx_rate',
   {
