@@ -1,261 +1,261 @@
 ---
 title: 용어집
-description: holiday 유비쿼터스 언어
+description: 장부·거래·스케줄에서 쓰는 공통 말
 type: conceptual
-summary: 코드·정책·CLI가 같은 말로 말한다. 섹션별 Term.
+summary: 조직이 같은 뜻으로 쓰는 도메인 말. 카드의 개발 칸에 코드·CLI 대응을 둔다.
 ---
 
-같은 단어가 스펙·대화·코드·컬럼에 같아야 한다. 아래 `code`는 구현이 사는 곳이다.
+회의·문서·제품이 같은 뜻으로 쓰는 말입니다. 카드 위는 업무 의미, 아래 **개발**은
+코드·CLI 대응입니다.
 
-## 원장·전기
+## 장부·거래
 
 <Glossary>
-  <Term term="book" ko="원장" code="book / .holiday/ledger.db">
-    1인 복식부기의 단일 진실. 로컬 SQLite 파일.
+  <Term term="book" ko="장부" code="book / .holiday/ledger.db" tech="로컬 SQLite 파일 `.holiday/ledger.db`. 테이블 `book`.">
+    한 사람의 가계부를 담는 장부입니다. 수입·지출·부채의 기준이 되는 단 하나의 기록입니다.
   </Term>
-  <Term term="txn" ko="거래" code="txn" notTo="ingest_item·스케줄 발생">
-    같은 날짜·기표통화로 묶인 다리(≥2)의 집합. 균형이어야 한다.
+  <Term term="txn" ko="거래" code="txn" notTo="수집 항목이나 앞으로의 스케줄 예정과 다릅니다" tech="테이블 `txn`. 다리는 2개 이상이어야 하고, 장부가액 합이 0이어야 확정됩니다.">
+    같은 날, 같은 기준으로 묶인 돈의 움직임입니다. 한쪽이 늘면 다른 쪽이 줄어야 합니다.
   </Term>
-  <Term term="posting / leg" ko="전기 / 다리" code="posting · --leg">
-    한 계정의 이동. units(사실)와 weight(측정)를 함께 가진다.
+  <Term term="posting / leg" ko="전기 / 다리" code="posting · --leg" tech="테이블 posting. CLI는 --leg 로 ACCOUNT AMOUNT COMMODITY 형태를 받습니다. 각 다리는 units(사실)와 weight(장부가액)를 함께 갖습니다.">
+    거래 안에서 **한 계정**으로 들어온·나간 한 줄입니다. 거래는 이런 줄이 모여 성립합니다.
   </Term>
-  <Term term="units" ko="수량" code="posting.units_minor" notTo="잔액 집계에 쓰지 말 것">
-    계정 commodity로 기록된 사실량(정수 minor).
+  <Term term="units" ko="수량" code="posting.units_minor" notTo="잔액·현금흐름 집계에는 쓰지 않습니다" tech="`posting.units_minor` — 계정 commodity의 정수 minor 단위.">
+    그 계정 통화로 실제로 움직인 양입니다. 달러 계정이면 달러 수량입니다.
   </Term>
-  <Term term="weight" ko="장부가액" code="posting.weight_minor" notTo="units×rate로 조회 시 재균형">
-    같은 사건을 기능통화로 환산한 값. 잔액·균형은 Σ weight만.
+  <Term term="weight" ko="장부가액" code="posting.weight_minor" notTo="조회 시 units×환율로 다시 맞춰 균형을 맞추지 않습니다" tech="`posting.weight_minor`. 잔액·거래 균형은 Σ weight만 봅니다 (POLICY-001).">
+    같은 사건을 **장부 기준 통화**로 환산한 금액입니다. “장부에 얼마로 잡혔는가”입니다.
   </Term>
-  <Term term="weight_source" code="identity|actual|rate|plug">
-    weight가 어떻게 생겼는지. identity=기능통화 다리, actual=관측(@@), rate=환율표 유도, plug=잔차 다리.
+  <Term term="weight_source" ko="장부가액 출처" code="identity|actual|rate|plug" tech="`weight_source`: identity(기준통화 다리), actual(관측 @@), rate(환율표 유도), plug(잔차 다리).">
+    장부가액이 **어떻게 정해졌는지**입니다. 직접 관측했는지, 환율로 환산했는지, 잔차로 맞췄는지 구분합니다.
   </Term>
-  <Term term="plug" ko="잔차 다리" code="weight_source=plug" notTo="허용오차로 숨기지 말 것">
-    외화만 있을 때 기능통화로 넣는 스프레드/잔차 다리. 반드시 booking commodity.
+  <Term term="plug" ko="잔차 다리" code="weight_source=plug" notTo="오차를 허용해서 숨기지 않습니다" tech="`weight_source=plug`. 반드시 기표 통화(booking commodity) 다리입니다.">
+    외화만 있을 때, 장부가 딱 맞도록 기준 통화로 넣는 마지막 맞춤 줄입니다.
   </Term>
-  <Term term="residual" ko="잔차" code="unbalanced.residualMinor">
-    불균형 시 정확히 남는 Σ weight. 누락 수수료 단서. 허용오차 없음 (POLICY-001).
+  <Term term="residual" ko="잔차" code="unbalanced.residualMinor" tech="불균형 시 남는 Σ weight. 허용오차 없음 (POLICY-001).">
+    거래가 안 맞을 때 **정확히 남는 차이**입니다. 빠진 수수료·누락 줄을 찾는 단서가 됩니다.
   </Term>
-  <Term term="functional currency" ko="기능통화" code="book.functional_currency">
-    `init --currency`로 정한다. 모든 txn의 booking commodity.
+  <Term term="functional currency" ko="기능통화" code="book.functional_currency" tech="`init --currency`로 정합니다. 모든 거래의 booking commodity입니다.">
+    이 장부가 “얼마인가”를 말할 때 쓰는 기준 통화입니다. 보통 KRW입니다.
   </Term>
-  <Term term="booking commodity" ko="기표 통화" code="txn.booking_commodity">
-    거래가 균형 검사에 쓰는 통화. 항상 기능통화와 같다.
+  <Term term="booking commodity" ko="기표 통화" code="txn.booking_commodity" tech="거래 균형 검사에 쓰는 통화. 항상 기능통화와 같습니다.">
+    거래를 장부에 올릴 때 균형을 재는 통화입니다. 기능통화와 같습니다.
   </Term>
-  <Term term="commodity" ko="상품" code="commodity" notTo="기능통화와 동의어 아님">
-    세는 대상(fiat/crypto/security/unit). exponent(소수 자릿수)를 가진다.
+  <Term term="commodity" ko="상품(통화·자산 단위)" code="commodity" notTo="기능통화와 같은 말이 아닙니다" tech="fiat/crypto/security/unit. `exponent`(소수 자릿수)를 가집니다.">
+    세는 단위입니다. 원·달러·코인·주식처럼 “무엇으로 세는지”입니다.
   </Term>
-  <Term term="sealed" ko="봉인" code="txn.sealed" notTo="draft 상태와 다른 축">
-    전기 후 seal. sealed만 사실로 읽힌다. 트리거가 sealed 불변을 지킨다.
+  <Term term="sealed" ko="봉인" code="txn.sealed" notTo="대기(draft) 상태와는 다른 축입니다" tech="전기 후 seal. sealed만 사실로 읽습니다. DB 트리거가 불변을 지킵니다.">
+    장부에 **사실로 잠긴** 거래입니다. 봉인된 것만 잔액·보고에 들어갑니다.
   </Term>
-  <Term term="fx_estimated" ko="환율 추정" code="txn.fx_estimated">
-    다리 중 `weight_source=rate`가 있으면 true. 균형은 맞아도 신뢰는 잠정.
+  <Term term="fx_estimated" ko="환율 추정" code="txn.fx_estimated" tech="다리 중 `weight_source=rate`가 있으면 true. 균형은 맞아도 신뢰는 잠정입니다.">
+    장부가액 일부를 환율표로 환산했을 때 붙는 표시입니다. 숫자는 맞더라도 “확정 관측”은 아닙니다.
   </Term>
-  <Term term="system_kind" code="fx_revaluation|closing_entry|opening_balance">
-    시스템이 쓴 거래 종류. close 재평가는 `fx_revaluation`. CLI는 P&amp;L closing_entry를 쓰지 않는다.
+  <Term term="system_kind" ko="시스템 거래 종류" code="fx_revaluation|closing_entry|opening_balance" tech="시스템이 쓴 거래. 마감 재평가는 fx_revaluation. CLI는 손익 closing_entry를 쓰지 않습니다.">
+    사람이 직접 쓴 거래가 아니라, 시스템이 마감·기초잔액 등으로 넣은 거래의 종류입니다.
   </Term>
-  <Term term="@@" ko="관측 총액" code="--leg &quot;… @@ TOTAL&quot;" notTo="@ 단가 환율(거부)">
-    상대 통화를 관측 총액으로 지정. FX는 @@를 선호한다.
+  <Term term="@@" ko="관측 총액" code='--leg "… @@ TOTAL"' notTo="@ 단가 환율은 쓰지 않습니다(거부)" tech="상대 통화를 관측 총액으로 지정. FX는 @@를 선호합니다. `@` 단위당 환율은 의도적으로 거부합니다.">
+    “이 외화 움직임이 기준 통화로 **얼마였는지**”를 관측값으로 적을 때 씁니다.
   </Term>
 </Glossary>
 
 ## 계정
 
 <Glossary>
-  <Term term="account code" ko="계정 코드" code="account.code">
-    `Root:Segment:…` (Beancount). Root ∈ Assets/Liabilities/Equity/Income/Expenses. 루트만으로는 전기 불가.
+  <Term term="account code" ko="계정 코드" code="account.code" tech="`Root:Segment:…` (Beancount). Root ∈ Assets/Liabilities/Equity/Income/Expenses. 루트만으로는 전기 불가.">
+    통장·카드·비용 항목을 가리키는 이름입니다. `자산:은행:KB:입출금`처럼 계층으로 적습니다.
   </Term>
-  <Term term="account type" ko="계정 유형" code="account.type">
-    asset/liability/equity/income/expense. 코드 prefix에서 유도.
+  <Term term="account type" ko="계정 유형" code="account.type" tech="asset/liability/equity/income/expense. 코드 prefix에서 유도합니다.">
+    자산·부채·자본·수익·비용 구분입니다. 계정 코드의 맨 앞 뿌리가 정합니다.
   </Term>
-  <Term term="cash" ko="현금성" code="account.cash · --cash" notTo="Assets:Bank:* prefix">
-    cashflow opening에 넣을지. 플래그다 (ADR-004). 경로로 추론하지 않는다.
+  <Term term="cash" ko="현금성" code="account.cash · --cash" notTo="경로 이름(Assets:Bank:…)으로 짐작하지 않습니다" tech="플래그 `account.cash` (ADR-004). cashflow 기초에 포함할지 결정합니다.">
+    지금 쓸 수 있는 돈으로 볼지 여부입니다. 통장·현금 등 런웨이에 넣을 계정에 표시합니다.
   </Term>
-  <Term term="monetary" ko="화폐성" code="account.monetary">
-    IAS 21. 화폐성 자산·부채만 마감 시 FX 재평가. 유형/선급 등은 non-monetary.
+  <Term term="monetary" ko="화폐성" code="account.monetary" tech="IAS 21. 화폐성 자산·부채만 마감 시 FX 재평가. 유형자산·선급 등은 non-monetary.">
+    환율이 바뀌면 장부가액도 다시 맞춰야 하는 외화 자산·부채인지입니다.
   </Term>
-  <Term term="placeholder" ko="플레이스홀더" code="account.placeholder">
-    그룹 노드. posting 불가(트리거).
+  <Term term="placeholder" ko="플레이스홀더" code="account.placeholder" tech="그룹 노드. posting 불가(트리거).">
+    묶음용 계정입니다. 여기에는 직접 거래를 넣지 않고, 하위 계정에만 넣습니다.
   </Term>
-  <Term term="funding account" ko="결제 계정" code="card/recurring/loan.funding_account_id">
-    현금이 나가는(또는 카드면 먼저 빚이 생기는) 계정.
+  <Term term="funding account" ko="결제 계정" code="card/recurring/loan.funding_account_id" tech="카드·정기·대출 스케줄이 가리키는 현금(또는 먼저 빚이 생기는) 계정.">
+    실제로 돈이 빠져나가거나(또는 카드면 먼저 빚이 생기는) 통장·카드 계정입니다.
   </Term>
 </Glossary>
 
 ## 거래 상태·검토
 
 <Glossary>
-  <Term term="draft" ko="초안" code="txn.status=draft" notTo="posted">
-    검토 전. 잔액·리포트·마감 게이트에서 제외.
+  <Term term="draft" ko="대기" code="txn.status=draft" notTo="확정(posted)과 다릅니다. 미분류 건은 분류 대기라고 부릅니다" tech="잔액·리포트·마감 게이트에서 제외됩니다.">
+    아직 장부 사실로 올리지 않은 건입니다. 검토·분류가 끝나기 전 상태입니다.
   </Term>
-  <Term term="posted" ko="전기됨" code="txn.status=posted">
-    장부의 사실. 직접 기표 또는 review accept.
+  <Term term="posted" ko="확정" code="txn.status=posted" tech="직접 기표 또는 `review accept`로 장부 사실이 됩니다.">
+    장부에 반영된 확정 거래입니다. 잔액과 보고의 기준입니다.
   </Term>
-  <Term term="void" ko="무효" code="txn.status=void" notTo="rejected">
-    이미 posted된 거래를 무효로 표시(삭제 대신). append-only.
+  <Term term="void" ko="무효" code="txn.status=void" notTo="반려(rejected)와 다릅니다" tech="이미 확정된 거래를 삭제 대신 무효 표시. append-only.">
+    이미 확정했던 거래를 **없었던 일로** 표시한 상태입니다. 기록은 남습니다.
   </Term>
-  <Term term="rejected" ko="거절" code="txn.status=rejected" notTo="void">
-    draft 반려. 행은 중복 기억용으로 유지.
+  <Term term="rejected" ko="반려" code="txn.status=rejected" notTo="무효(void)와 다릅니다" tech="draft 반려. 행은 중복 기억용으로 유지합니다.">
+    대기 건을 장부에 올리지 않기로 한 상태입니다.
   </Term>
-  <Term term="review" ko="검토" code="holiday review">
-    draft → accept(posted) / reject. 금액 재검증이 아니라 승인 게이트.
+  <Term term="review" ko="검토" code="holiday review" tech="draft → accept(확정) / reject(반려). 금액 재계산이 아니라 승인 게이트입니다.">
+    대기 건을 보고 **승인**하거나 **반려**하는 단계입니다.
   </Term>
 </Glossary>
 
 ## 통화·환율
 
 <Glossary>
-  <Term term="fx_rate" ko="환율" code="fx_rate" notTo="기표된 weight 소급 변경">
-    1 base = rate quote (소수 문자열). 이후 유도·재평가에만 영향.
+  <Term term="fx_rate" ko="환율" code="fx_rate" notTo="이미 기표된 장부가액을 소급해 바꾸지 않습니다" tech="1 base = rate quote (소수 문자열). 이후 유도·재평가에만 영향합니다.">
+    나중에 환산·재평가에 쓰는 환율표입니다. 이미 확정된 과거 거래를 되돌리지는 않습니다.
   </Term>
-  <Term term="FX resolution" ko="환율 해석" code="exact|stale|inverse|triangulated">
-    `fx show` / convert가 고르는 경로. 없으면 throw(암묵 1.0 없음).
+  <Term term="FX resolution" ko="환율 해석" code="exact|stale|inverse|triangulated" tech="`fx show` / convert가 고르는 경로. 없으면 throw(암묵 1.0 없음).">
+    필요한 환율을 어떻게 찾았는지입니다. 없으면 임의로 1.0을 쓰지 않고 실패합니다.
   </Term>
-  <Term term="revaluation" ko="재평가" code="system_kind=fx_revaluation">
-    마감 시 화폐성 외화 A/L의 carrying weight를 맞추는 분개. units=0, Δweight.
+  <Term term="revaluation" ko="재평가" code="system_kind=fx_revaluation" tech="마감 시 화폐성 외화 A/L의 carrying weight를 맞추는 분개. units=0, Δweight.">
+    마감 때 외화 자산·부채의 장부가액을 최신 환율에 맞게 조정하는 분개입니다.
   </Term>
-  <Term term="carrying value" ko="장부가액(KRW)" code="Σ weight_minor">
-    계정에 쌓인 기능통화 측정액. 외화 units 잔액과 다르다.
+  <Term term="carrying value" ko="장부가액(기준통화)" code="Σ weight_minor" tech="계정에 쌓인 기능통화 측정액. 외화 units 잔액과 다릅니다.">
+    계정에 쌓인 **기준 통화 기준** 금액입니다. 외화 잔고(수량)와는 다를 수 있습니다.
   </Term>
 </Glossary>
 
 ## 스케줄
 
 <Glossary>
-  <Term term="schedule / forecast" ko="스케줄·예측" code="card|installment|recurring|income|loan" notTo="저널 사실">
-    저널 밖의 미래 투영. 바꾸어도 과거 posting은 그대로.
+  <Term term="schedule / forecast" ko="스케줄·예측" code="card|installment|recurring|income|loan" notTo="이미 확정된 장부 거래가 아닙니다" tech="저널 밖 미래 투영. 스케줄을 바꿔도 과거 posting은 그대로입니다.">
+    앞으로 나갈·들어올 돈을 **미리 적어 둔 일정**입니다. 아직 일어난 사실이 아닙니다.
   </Term>
-  <Term term="billing cycle" ko="청구주기" code="card · cycle_close_day">
-    구매일 → 청구마감·결제일 매핑. 없으면 cashflow가 카드를 못 본다.
+  <Term term="billing cycle" ko="청구주기" code="card · cycle_close_day" tech="구매일 → 청구마감·결제일 매핑. 없으면 cashflow가 카드를 못 봅니다.">
+    카드 사용 기간이 언제 닫히고, 언제 결제되는지 정한 주기입니다.
   </Term>
-  <Term term="cycle close day" ko="청구 마감일" code="card.cycle_close_day" notTo="payment day">
-    주기에 포함되는 마지막 구매일. 31=말일.
+  <Term term="cycle close day" ko="청구 마감일" code="card.cycle_close_day" notTo="결제일과 다릅니다" tech="주기에 포함되는 마지막 구매일. 31=말일.">
+    이번 청구에 포함되는 마지막 사용일입니다.
   </Term>
-  <Term term="payment day" ko="결제일" code="card.payment_day">
-    funding에서 현금이 나가는 날. -1=말일.
+  <Term term="payment day" ko="결제일" code="card.payment_day" tech="funding에서 현금이 나가는 날. -1=말일.">
+    결제 계정에서 카드값이 빠져나가는 날입니다.
   </Term>
-  <Term term="installment" ko="할부" code="installment" notTo="카드 일반 부채 계정과 공유">
-    구매일에 전액 부채, 회차로 현금 유출. 별도 `…:Installment` 계정 (POLICY-003).
+  <Term term="installment" ko="할부" code="installment" notTo="일반 카드 부채 계정과 같은 계정을 쓰지 않습니다" tech="별도 `…:Installment` 계정 (POLICY-003). 구매일에 전액 부채, 회차로 현금 유출.">
+    큰 지출을 여러 달에 나눠 갚는 일정입니다. 일반 카드 청구와는 계정을 분리합니다.
   </Term>
-  <Term term="installment fee" ko="할부수수료" code="fee_minor" notTo="원금에 합치기">
-    명세서 관측값만. 공식 추정 금지 (POLICY-006). 원금 불변식과 분리 (POLICY-009).
+  <Term term="installment fee" ko="할부수수료" code="fee_minor" notTo="원금에 합치지 않습니다" tech="명세서 관측값만. 공식 추정 금지 (POLICY-006). 원금 불변식과 분리 (POLICY-009).">
+    할부에 붙은 수수료입니다. 명세서에 찍힌 금액만 쓰고, 공식으로 추정하지 않습니다.
   </Term>
-  <Term term="recurring" ko="정기지출" code="recurring">
-    월세·구독 등. today 이하 발생은 투영하지 않음 (POLICY-005).
+  <Term term="recurring" ko="정기지출" code="recurring" tech="월세·구독 등. 오늘 이하 발생은 투영하지 않음 (POLICY-005).">
+    매달 나가는 고정비입니다. 월세·구독처럼 앞으로의 유출로 잡습니다.
   </Term>
-  <Term term="recurring income" ko="정기수입" code="recurring_income">
-    급여·고정 수입. today 이하 발생은 투영하지 않음 (POLICY-017). `--cash` 입금만 런웨이.
+  <Term term="recurring income" ko="정기수입" code="recurring_income" tech="급여·고정 수입. 오늘 이하 발생은 투영하지 않음 (POLICY-017). `--cash` 입금만 런웨이.">
+    매달 들어오는 고정 수입입니다. 급여처럼 앞으로의 유입으로 잡습니다.
   </Term>
-  <Term term="income source / settlement" ko="수입 원천·정산" code="income_source|income_settlement">
-    업체별 법정 공제 regime. 3.3%·부가세·4대보험은 CLI가 강제 (POLICY-018…020). 갑근세만 명세서 입력.
+  <Term term="income source / settlement" ko="수입 원천·정산" code="income_source|income_settlement" tech="업체별 법정 공제 regime. 3.3%·부가세·4대보험은 CLI가 강제 (POLICY-018…020). 갑근세만 명세서 입력.">
+    어디서 얼마를 받았고, 원천징수·공제가 어떻게 빠졌는지 남기는 단위입니다.
   </Term>
-  <Term term="loan" ko="대출" code="loan">
-    상환 스케줄 + 원장 대사. 스케줄은 예측, `loan pay`는 저널 사실.
+  <Term term="loan" ko="대출" code="loan" tech="상환 스케줄 + 원장 대사. 스케줄은 예측, `loan pay`는 저널 사실.">
+    빌린 돈의 상환 일정과, 실제 갚은 기록을 맞춰 보는 대상입니다.
   </Term>
-  <Term term="amortization method" ko="상환 방식" code="annuity|equal_principal|bullet|interest_only">
-    원리금균등 / 원금균등 / 만기일시 / 거치. 0% annuity 거부 (POLICY-014).
+  <Term term="amortization method" ko="상환 방식" code="annuity|equal_principal|bullet|interest_only" tech="원리금균등 / 원금균등 / 만기일시 / 거치. 0% annuity 거부 (POLICY-014).">
+    대출을 어떻게 나눠 갚는지입니다. 원리금균등·원금균등·만기일시·거치 등.
   </Term>
 </Glossary>
 
 ## 현금흐름
 
 <Glossary>
-  <Term term="cash runway" ko="현금 런웨이" code="cashRunway · cashflow">
-    cash 계정 opening에서 스케줄 유출·유입을 날짜별로 반영해 잔액을 본다. 저장 테이블 아님.
+  <Term term="cash runway" ko="현금 런웨이" code="cashRunway · cashflow" tech="cash 계정 opening에서 스케줄 유출·유입을 날짜별로 반영. 저장 테이블이 아닙니다.">
+    지금 현금에서 앞으로의 입출금을 날짜별로 이어 본 **잔액 전망**입니다.
   </Term>
-  <Term term="opening cash" ko="기초 현금" code="account.cash 합">
-    `--cash` 계정들의 잔액 합. cashflow의 시작점.
+  <Term term="opening cash" ko="기초 현금" code="account.cash 합" tech="`--cash` 계정 잔액 합. cashflow의 시작점입니다.">
+    런웨이를 시작할 때 쓸 수 있는 현금 합입니다.
   </Term>
-  <Term term="projected outflow" ko="투영 유출" code="ProjectedOutflow">
-    카드·할부·정기(출)·대출이 특정 날짜에 현금으로 나가는 예측분. 정기수입은 같은 런웨이에 유입으로 합류.
+  <Term term="projected outflow" ko="투영 유출" code="ProjectedOutflow" tech="카드·할부·정기지출·대출이 특정 날짜에 현금으로 나가는 예측분. 정기수입은 같은 런웨이에 유입으로 합류합니다.">
+    아직 안 나갔지만, 스케줄상 그날 나갈 것으로 보이는 금액입니다.
   </Term>
-  <Term term="SHORT" ko="부족" code="⚠ SHORT">
-    잔액이 음수가 되는 날. cashflow의 payoff 신호.
+  <Term term="SHORT" ko="부족" code="⚠ SHORT" tech="잔액이 음수가 되는 날. cashflow의 payoff 신호입니다.">
+    그날이 되면 현금이 모자라는 지점입니다.
   </Term>
 </Glossary>
 
 ## 마감·감사
 
 <Glossary>
-  <Term term="assertion" ko="잔액 대사" code="balance_assertion · assert">
-    명세서 금액과 장부 대조. 외부 세계를 믿는 유일한 체크. 마감 게이트 입력.
+  <Term term="assertion" ko="잔액 대조" code="balance_assertion · assert" tech="명세서 금액과 장부 대조. 외부 세계를 믿는 유일한 체크. 마감 게이트 입력.">
+    통장·카드 명세서의 잔액과 장부를 맞춰 보는 일입니다.
   </Term>
-  <Term term="period" ko="마감 기간" code="period">
-    grain+구간의 상태: open / closed / locked.
+  <Term term="period" ko="마감 기간" code="period" tech="grain+구간의 상태: open / closed / locked.">
+    마감 단위로 나눈 기간입니다. 열림·마감·잠금 상태를 가집니다.
   </Term>
-  <Term term="close grain" ko="마감 단위" code="book.close_grain">
-    북당 하나. day|week|month|quarter|year (기본 month).
+  <Term term="close grain" ko="마감 단위" code="book.close_grain" tech="북당 하나. day|week|month|quarter|year (기본 month).">
+    얼마마다 마감할지입니다. 보통 월 단위입니다.
   </Term>
-  <Term term="close gate" ko="마감 게이트" code="closeGate">
-    period 안 draft 없음 + assertion 통과여야 close.
+  <Term term="close gate" ko="마감 게이트" code="closeGate" tech="period 안 draft 없음 + assertion 통과여야 close.">
+    마감에 들어가기 전 통과해야 하는 조건입니다. 대기 건이 없고 잔액 대조가 맞아야 합니다.
   </Term>
-  <Term term="snapshot" ko="스냅샷" code="snapshot · snapshot_balance">
-    마감(또는 soft checkpoint) 시점 잔액 동결.
+  <Term term="snapshot" ko="스냅샷" code="snapshot · snapshot_balance" tech="마감(또는 soft checkpoint) 시점 잔액 동결.">
+    특정 시점의 잔액을 그대로 얼려 둔 기록입니다.
   </Term>
-  <Term term="checkpoint (snapshot)" ko="체크포인트 스냅샷" code="snapshot.kind=checkpoint" notTo="holiday checkpoint">
-    재평가·저널 잠금 없는 스냅샷.
+  <Term term="checkpoint (snapshot)" ko="체크포인트 스냅샷" code="snapshot.kind=checkpoint" notTo="CLI의 WAL checkpoint와 다릅니다" tech="재평가·저널 잠금 없는 스냅샷.">
+    마감까지는 아니어도, 잔액만 찍어 둔 중간 기록입니다.
   </Term>
-  <Term term="checkpoint (CLI)" ko="WAL checkpoint" code="holiday checkpoint" notTo="snapshot.kind=checkpoint">
-    SQLite WAL을 `ledger.db`로 fold. 커밋 전.
+  <Term term="checkpoint (CLI)" ko="WAL 체크포인트" code="holiday checkpoint" notTo="스냅샷 checkpoint와 다릅니다" tech="SQLite WAL을 `ledger.db`로 fold. 커밋 전.">
+    장부 파일을 디스크에 안전하게 모으는 운영 명령입니다. 업무 마감과는 다릅니다.
   </Term>
-  <Term term="audit chain" ko="감사 체인" code="audit_log">
-    내용 해시 체인. `verify`가 검사. `--head`로 외부 앵커.
+  <Term term="audit chain" ko="감사 체인" code="audit_log" tech="내용 해시 체인. `verify`가 검사. `--head`로 외부 앵커.">
+    기록이 중간에 바뀌지 않았는지 이어 붙인 검증 사슬입니다.
   </Term>
-  <Term term="verify" ko="검증" code="holiday verify">
-    불변식·해시 체인 전수 검사. 실패 시 `verify_failed`.
+  <Term term="verify" ko="검증" code="holiday verify" tech="불변식·해시 체인 전수 검사. 실패 시 `verify_failed`.">
+    장부 규칙과 감사 체인이 깨지지 않았는지 전부 검사하는 일입니다.
   </Term>
 </Glossary>
 
 ## 세금 신고
 
 <Glossary>
-  <Term term="tax return" ko="세금 신고서" code="tax_return · holiday tax return" notTo="Expenses:Tax 전표">
-    신고서 **표지**(종류·귀속연도·신고일·차수)와 **세액표 숫자**(소득금액·과세표준·납부할세액 등)를
-    전표와 따로 남겨 둔 기록. 신고서에 찍힌 관측값만 — 세액 재계산 없음 (ADR-010).
+  <Term term="tax return" ko="세금 신고서" code="tax_return · holiday tax return" notTo="세금 납부 전표(Expenses:Tax)와 다릅니다" tech="신고서 표지·세액표 숫자. 관측값만 저장. 세액 재계산 없음 (ADR-010).">
+    신고서에 찍힌 소득금액·과세표준·세액 등을 장부 전표와 **따로** 남겨 둔 기록입니다.
   </Term>
-  <Term term="tax year" ko="귀속연도" code="tax_return.tax_year">
-    몇 년도 소득에 대한 신고인지. 신고일(`filed_on`)과 다를 수 있다 (예: 2025년분 신고를 2026년에 제출).
+  <Term term="tax year" ko="귀속연도" code="tax_return.tax_year" tech="몇 년도 소득에 대한 신고인지. 신고일(`filed_on`)과 다를 수 있습니다.">
+    어느 해 소득에 대한 신고인지입니다. 제출한 해와 다를 수 있습니다.
   </Term>
-  <Term term="income amount" ko="소득금액" code="tax_return_line.key=income_amount">
-    종합소득세 세액계산의 소득금액(서식 ⑲). 신고서에 찍힌 값 그대로.
+  <Term term="income amount" ko="소득금액" code="tax_return_line.key=income_amount" tech="종합소득세 세액계산의 소득금액(서식 ⑲). 신고서 관측값 그대로.">
+    신고서에 적힌 소득금액입니다. 시스템이 다시 계산하지 않습니다.
   </Term>
-  <Term term="tax base" ko="과세표준" code="tax_return_line.key=tax_base">
-    과세표준(서식 ㉑). 신고서에 찍힌 값 그대로 — CLI가 소득금액−공제로 다시 계산하지 않는다.
+  <Term term="tax base" ko="과세표준" code="tax_return_line.key=tax_base" tech="과세표준(서식 ㉑). CLI가 소득금액−공제로 재계산하지 않습니다.">
+    신고서에 적힌 과세표준입니다. 그대로 보관합니다.
   </Term>
-  <Term term="revision" ko="신고 차수" code="tax_return.revision" notTo="덮어쓰기">
-    최초·수정을 구분하는 번호. 수정신고는 이전 건을 지우지 않고 차수를 올려 새로 남긴다. 이전 건은 “대체됨”.
+  <Term term="revision" ko="신고 차수" code="tax_return.revision" notTo="이전 신고를 덮어쓰지 않습니다" tech="수정신고는 차수를 올려 append. 이전 건은 대체됨.">
+    최초 신고와 수정신고를 구분하는 번호입니다. 고칠 때 예전 기록을 지우지 않습니다.
   </Term>
 </Glossary>
 
 ## 수집
 
 <Glossary>
-  <Term term="ingest" ko="데이터 수집" code="holiday ingest submit" notTo="OCR">
-    파싱된 JSON → draft. CLI는 OCR을 하지 않는다. 호출자가 파서.
+  <Term term="ingest" ko="수집" code="holiday ingest submit" notTo="OCR 자체가 아닙니다" tech="파싱된 JSON → draft. CLI는 OCR을 하지 않습니다. 호출자가 파서입니다.">
+    외부에서 읽은 거래 후보를 장부 대기 목록으로 넣는 일입니다.
   </Term>
-  <Term term="ingest batch / item" ko="수집 배치·항목" code="ingest_batch · ingest_item">
-    배치=소스(이미지 SHA 등). 항목=파싱된 거래 후보. status pending|accepted|rejected.
+  <Term term="ingest batch / item" ko="수집 배치·항목" code="ingest_batch · ingest_item" tech="배치=소스(이미지 SHA 등). 항목=파싱된 거래 후보. status pending|accepted|rejected.">
+    한 번에 들어온 묶음(배치)과, 그 안의 개별 거래 후보(항목)입니다.
   </Term>
-  <Term term="idem-key" ko="멱등 키" code="--idem-key · command_log">
-    같은 키+같은 요청이면 저장된 응답 재생. 다른 요청이면 오류.
+  <Term term="idem-key" ko="멱등 키" code="--idem-key · command_log" tech="같은 키+같은 요청이면 저장된 응답 재생. 다른 요청이면 오류.">
+    같은 요청을 두 번 보내도 결과가 한 번만 반영되게 하는 열쇠입니다.
   </Term>
-  <Term term="dedupe authority" ko="중복 권위" code="image|external_ref|natural">
-    image/external_ref는 hard-block. natural(유사)은 경고만.
+  <Term term="dedupe authority" ko="중복 판정" code="image|external_ref|natural" tech="image/external_ref는 hard-block. natural(유사)은 경고만.">
+    이미 넣은 건과 겹치는지 어떤 기준으로 막는지를 말합니다.
   </Term>
 </Glossary>
 
-## 에이전트
+## 에이전트·CLI 계약
 
 <Glossary>
-  <Term term="--json" ko="기계 출력" code="global --json">
-    stdout JSON. 에러는 stderr 봉투. 에이전트와의 계약.
+  <Term term="--json" ko="기계 출력" code="global --json" tech="stdout JSON. 에러는 stderr 봉투. 에이전트와의 계약입니다.">
+    사람이 읽는 문장 대신, 프로그램이 읽기 쉬운 JSON으로 결과를 줍니다.
   </Term>
-  <Term term="exit code" ko="종료 코드" code="0|1|2">
-    0=성공, 1=LedgerError/internal, 2=UsageError. 에이전트가 분기하는 계약.
+  <Term term="exit code" ko="종료 코드" code="0|1|2" tech="0=성공, 1=LedgerError/internal, 2=UsageError.">
+    명령이 끝났을 때 성공·실패·사용법 오류를 숫자로 구분합니다.
   </Term>
-  <Term term="error envelope" ko="에러 봉투" code='{"error":{"code","message"}}'>
-    실패 시 stderr에 단일 JSON. 스택 트레이스가 계약이 아니다.
+  <Term term="error envelope" ko="에러 봉투" code='{"error":{"code","message"}}' tech="실패 시 stderr에 단일 JSON. 스택 트레이스가 계약이 아닙니다.">
+    실패했을 때 정해진 모양의 오류 메시지입니다. 코드와 설명만 담습니다.
   </Term>
-  <Term term="skill" ko="스킬" code="plugin/skills/holiday-cfo">
-    채팅에서 CLI를 shell-out하는 에이전트 계약. 금액·계정 추정 기표 금지.
+  <Term term="skill" ko="스킬" code="plugin/skills/holiday-cfo" tech="채팅에서 CLI를 shell-out. 금액·계정 추정 기표 금지.">
+    채팅 에이전트가 장부를 다룰 때 따르는 약속입니다. 숫자를 짐작해 기표하지 않습니다.
   </Term>
 </Glossary>
 
