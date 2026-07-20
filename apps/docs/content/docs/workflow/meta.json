@@ -1,8 +1,8 @@
 {
-  "title": "설계",
+  "title": "워크플로우",
   "pages": [
-    "system",
-    "adr"
+    "planning",
+    "development"
   ],
   "collapsible": true,
   "defaultOpen": false

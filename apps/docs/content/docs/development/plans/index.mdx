@@ -1,0 +1,26 @@
+---
+title: 구현계획
+description: PRD와 스펙을 코드 변경 단계에 연결하는 실행 계획
+type: overview
+summary: 구현 PR은 기본 브랜치에 준비된 계획을 먼저 가져야 한다.
+---
+
+구현계획은 PRD와 스펙을 패키지·파일·테스트 단위 실행 순서로 바꾼다. 제품 계약이 아니라
+특정 변경을 완료하기 위한 기간성 문서다. 개별 계획은 사이드바에 펼치지 않는다 — 아래에서
+고른다.
+
+| | ID | Stage | Change type | PRD |
+|---|---|---|---|---|
+| <DocKind kind="PLAN" ticker="plan-001" /> | [plan-docs-first-development](/docs/development/plans/plan-docs-first-development) | <DocStatus status="done" /> | product | <DocKind kind="PRD" ticker="prd-002" href="/docs/planning/prds/prd-docs-first-development" /> |
+| <DocKind kind="PLAN" ticker="plan-002" /> | [plan-tax-return-sor](/docs/development/plans/plan-tax-return-sor) | <DocStatus status="ready" /> | product | <DocKind kind="PRD" ticker="prd-003" href="/docs/planning/prds/prd-tax-return-sor" /> |
+| <DocKind kind="PLAN" ticker="plan-003" /> | [plan-release-tagged-deploys](/docs/development/plans/plan-release-tagged-deploys) | <DocStatus status="ready" /> | maintenance | — |
+
+## 상태
+
+- `draft`: 검토 전
+- `ready`: 구현을 시작할 수 있음
+- `active`: 구현 중
+- `done`: 구현과 검증 완료
+- `superseded`: 다른 계획으로 대체
+
+구현 PR은 base 브랜치에 `ready` 또는 `active` 상태로 존재하는 계획만 참조할 수 있다.

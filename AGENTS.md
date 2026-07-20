@@ -34,8 +34,8 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
 ## 개발 전 기획 게이트
 
 `apps/docs`가 기획의 단일 진실이다. 구현 코드를 먼저 고치고 문서를 역기록하지 마라.
-절차와 문서별 책임은 `apps/docs/content/docs/planning/workflow.mdx`, 기계 계약은
-`apps/docs/content/docs/spec/development/docs-first-workflow.mdx`를 따른다.
+절차·**작성 기준(비개발자 독자)** 은 `apps/docs/content/docs/workflow/planning.mdx`,
+기계 계약은 `apps/docs/content/docs/workflow/development.mdx`를 따른다.
 
 1. 작업을 시작하면 기존 PRD·스펙·구현계획이 요청을 충분히 설명하는지 먼저 확인한다.
 2. 새 기능·사용자 동작 변경(`product`)은 PRD + 스펙 + 구현계획이 필요하다.
@@ -44,18 +44,38 @@ plugins/codex/           Codex 플러그인 (스킬만; SKILL.md만 별도, refe
    바뀌면 스펙을 추가한다.
 5. 필요한 문서가 없으면 **구현 파일을 수정하지 않는다.** 기획 문서만 담은 PR을 먼저
    만들고 계획을 `stage: ready`로 둔다.
-6. **기획 PR을 올린 뒤 구현으로 넘어가지 마라.** 사용자(또는 리뷰어)가 설계를
+6. 기획 한글 본문(PRD·US·기능 수락 기준 등)을 쓰거나 고친 뒤에는 **항상**
+   im-not-ai 스킬을 실행한다. `.agents/skills/humanize/SKILL.md`를 읽고 `/humanize`
+   절차를 따른다(리뷰 직전은 `--strict` 권장). 윤문 결과를 반영한 뒤에야
+   `ready`/`active`로 올리고 사람 리뷰를 요청한다. 의미·ID·코드·표 구조는 유지한다.
+7. **기획 PR을 올린 뒤 구현으로 넘어가지 마라.** 사용자(또는 리뷰어)가 설계를
    승인하거나 기획이 기본 브랜치에 병합될 때까지 멈춘다. “완성하라”는 Cloud 지시만으로
    이 대기를 건너뛰지 않는다.
-7. 구현 브랜치의 base에는 준비된 계획(`stage: ready|active`)이 이미 있어야 한다.
-   같은 PR에 계획과 코드를 같이 넣지 마라 — CI가 거부한다. 구현 PR 본문에
-   `Plan: apps/docs/content/docs/planning/plans/plan-….mdx`를 적는다.
-8. 구현 중 범위나 계약이 달라지면 기획 PR로 문서를 먼저 갱신한다. 같은 내용을 새 ID로
-   복제하지 않는다.
-9. 구현과 검증이 끝나면 계획을 `done`으로 갱신한다.
+8. 구현 브랜치의 base에는 준비된 계획(`stage: ready|active`)이 이미 있어야 한다.
+   같은 PR에 계획과 코드를 같이 넣지 마라. 구현 PR 본문에
+   `Plan: apps/docs/content/docs/development/plans/plan-….mdx`를 적는다.
+9. 구현 중 범위나 계약이 달라지면 기획 PR로 문서를 먼저 갱신한다. 같은 내용을 새 ID로
+   복제하지 않는다. 한글 본문을 다시 고치면 6번(humanize)을 재실행한다.
+10. 구현과 검증이 끝나면 계획을 `done`으로 갱신한다.
 
-docs-only 변경은 선행 계획이 없어도 된다. 그 밖의 일반 우회 표식은 없다. 로컬에서
-`pnpm --filter @holiday-cfo/docs check:planning`과 `pnpm check:docs-first`로 검증한다.
+### 기획 문서 작성 (PRD / US / 기능 수락 기준)
+
+- 의존 방향: **PRD → US → 스펙·설계 → 코드**. 기획 본문이 뒤 단계 용어
+  (“개발 문서에서는 헤더라고…”)에 의존하지 않는다.
+- **첫 독자는 기획자·비개발 팀원**이다. `append`·`header`·테이블명만으로 본문을 쓰지 마라.
+- 무엇을 저장·조회하는지 **사람 이름 + 예시 값** 표로 푼다.
+- 수락 기준·성공 지표는 목록만 쓴다. `기획/비개발자가 확인할…` 같은 메타 안내는
+  본문에 넣지 않는다 (절차는 workflow·AGENTS에만).
+- PRD/US 본문에 CLI 명령·계정 코드(`txn add`, `Expenses:Tax:*`)를 넣지 마라.
+  기능·스펙에 두고 링크로만 연결한다.
+- 제품명(`holiday`)을 문장 주어로 반복하지 마라. CLI·경로에만 쓴다.
+- **필수:** im-not-ai (`humanize` / `humanize-korean`). 기획 한글 초안 → `/humanize` →
+  반영 → 리뷰. 스킵 금지.
+- 템플릿: `apps/docs/templates/`. 절차 전문: `apps/docs/content/docs/workflow/planning.mdx`.
+
+docs-only 변경은 선행 계획이 없어도 된다. 그 밖의 일반 우회 표식은 없다.
+
+로컬에서 `pnpm --filter @holiday-cfo/docs check:planning`과 `pnpm check:docs-first`로 검증한다.
 
 ## 명령
 
@@ -102,7 +122,7 @@ node packages/cli/dist/main.js <command>   # 배포되면 `npx @holiday-cfo/cli@
 9. **`LedgerStore` 구현은 `store-sql`에 하나.** 엔진 패키지는 드라이버·스키마·마이그레이션만.
 
 정책 카탈로그와 강제 테스트: `apps/docs/content/docs/domain/policy.mdx`.
-결정은 `apps/docs/content/docs/design/adr.mdx` — 거부한 대안이 본문이다.
+결정은 `apps/docs/content/docs/development/adr/` — 거부한 대안이 본문이다.
 
 ## 코딩 규칙
 

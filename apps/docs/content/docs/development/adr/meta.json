@@ -1,0 +1,18 @@
+{
+  "title": "ADR",
+  "pages": [
+    "adr-001",
+    "adr-002",
+    "adr-003",
+    "adr-004",
+    "adr-005",
+    "adr-006",
+    "adr-007",
+    "adr-008",
+    "adr-009",
+    "adr-010"
+  ],
+  "collapsible": true,
+  "defaultOpen": false,
+  "pagesIndex": "index"
+}

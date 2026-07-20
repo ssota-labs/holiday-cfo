@@ -1,0 +1,30 @@
+---
+title: ADR-008
+description: 로컬 dash는 조종석, 배포 dash는 사진
+type: decision
+summary: 로컬에서만 CLI로 쓰고, 배포본은 읽기 전용 사진이다.
+---
+
+<Decision
+  id="ADR-008"
+  title="로컬 dash는 조종석, 배포 dash는 사진"
+  status="accepted"
+  date="2026-07-18"
+  commit="d2cc3df"
+  rejected={[
+    { option: '대시보드를 끝까지 읽기 전용으로만', because: '분류 대기 건을 화면에서 고를 수 없으면, 사용자는 CLI 텍스트로 수천 건을 처리해야 한다. 가계부 앱처럼 클릭으로 고르는 UX가 필요했다.' },
+    { option: 'json-render 카탈로그에 actions로 쓰기 노출', because: '에이전트가 레이아웃(spec)에 쓰기 액션을 넣을 수 있게 된다. 에이전트는 숫자도 쓰기도 못 넣는다는 원칙이 깨진다. 쓰기는 블록 안 fetch로만 두고 카탈로그에는 안 올린다.' },
+    { option: '브라우저가 ledger.db를 직접 열기', because: 'CLI가 지키던 균형·감사 규칙을 전부 우회한다. 쓰기는 반드시 CLI를 거친다. 라우트는 전달만 한다.' },
+  ]}
+>
+분류 대기 큐처럼 **클릭으로 쓰는** 화면이 생기면서 경계를 나눴다.
+
+- **로컬 dash (`pnpm dev`)** — 조종석. `/api/holiday/*`가 CLI를 셸로 부른다.
+  클릭 한 번이 `holiday review accept --category …`다. 검증과 감사 체인은
+  여전히 CLI 것이다.
+- **배포 dash (정적 호스트)** — 사진. 서버가 없어 쓰기 API도 없다. 블록이
+  쓰기를 시도하다 실패하면 안내 한 줄로 접힌다. **실패 자체가 보안 경계다.**
+
+에이전트가 만지는 카탈로그에는 액션도 금액 prop도 없다. 쓰기가 일어나려면
+사용자가 **자기 기계**에서 버튼을 눌러야 한다.
+</Decision>

@@ -1,5 +1,5 @@
 {
-  "title": "CLI",
+  "title": "CLI API",
   "pages": [
     "versions",
     "init",
@@ -17,6 +17,7 @@
     "ingest",
     "review",
     "cashflow",
+    "tax",
     "verify",
     "checkpoint",
     "0.1.0"

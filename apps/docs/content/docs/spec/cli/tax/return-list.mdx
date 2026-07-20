@@ -1,0 +1,48 @@
+---
+title: tax return list
+description: holiday tax return list 명령 계약
+type: reference
+summary: 저장된 세금 신고서 헤더를 나열한다.
+id: SPEC-tax-return-list
+stage: accepted
+related:
+  - /docs/planning/prds/prd-tax-return-sor
+  - /docs/features/tax
+---
+
+<SpecVersion
+  spec="CLI"
+  version="0.2.4"
+  source="packages/cli/src/cli.ts"
+  history={[
+    {
+      version: '0.2.4',
+      date: '2026-07-19',
+      summary: 'tax return list — form/year/period 필터',
+      ref: 'packages/cli/src/cli.ts',
+    },
+  ]}
+/>
+
+> 이 페이지는 **latest**다.
+
+관련 기능: [tax](/docs/features/tax)
+
+<CommandSpec
+  command="tax return list"
+  mutates={false}
+  summary="저장된 세금 신고서 헤더를 나열한다."
+  signature={`holiday tax return list [--form] [--year] [--period] [--all]`}
+  flags={[
+    { name: '--form', type: 'string', description: '신고서 종류 필터' },
+    { name: '--year', type: 'number', description: '귀속연도 필터' },
+    { name: '--period', type: 'string', description: '과세기간 필터' },
+    { name: '--all', type: 'boolean', description: 'superseded revision 포함. 기본은 current만' },
+  ]}
+  exits={[
+    { code: 0, meaning: '성공' },
+    { code: 1, meaning: 'LedgerError 또는 내부 오류' },
+    { code: 2, meaning: '사용법 오류' },
+  ]}
+  example={`holiday tax return list --json`}
+/>

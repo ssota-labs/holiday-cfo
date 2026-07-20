@@ -1,10 +1,11 @@
 {
-  "title": "PRDs",
+  "title": "PRD",
   "pages": [
     "prd-0.1-foundation",
-    "prd-docs-first-development"
+    "prd-docs-first-development",
+    "prd-tax-return-sor"
   ],
   "collapsible": true,
-  "defaultOpen": true,
+  "defaultOpen": false,
   "pagesIndex": "index"
 }

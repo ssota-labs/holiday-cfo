@@ -1,0 +1,25 @@
+---
+title: ADR-009
+description: BYOC 멀티타깃 — 벤더 SDK는 템플릿에만, D1은 적합성 전 engine 금지
+type: decision
+summary: 배포는 Bring Your Own Cloud. 벤더 SDK는 생성 템플릿에만 둔다.
+---
+
+<Decision
+  id="ADR-009"
+  title="BYOC 멀티타깃 — 벤더 SDK는 템플릿에만, D1은 적합성 전 engine 금지"
+  status="accepted"
+  date="2026-07-18"
+  rejected={[
+    { option: '우리가 호스팅하는 멀티테넌트 웹', because: '1인 장부의 보관·접근·비용이 제품 밖으로 커진다. 사용자가 자기 클라우드를 쓰는 BYOC가 경계다.' },
+    { option: 'CLI·core에 supabase / vercel / D1 SDK를 넣기', because: '로컬 SQLite 경로까지 벤더에 묶인다. 배포 대상별 의존성은 생성 템플릿 package.json에만 둔다.' },
+    { option: 'D1을 곧바로 engine 원장으로 쓰기', because: 'batch는 있어도 대화형 트랜잭션이 없다. store-testkit을 다 통과하기 전에는 원장으로 선언하지 않고, Sites는 수신함·내보내기 정도로 제한한다.' },
+  ]}
+>
+`holiday deploy init --target …`이 대상별 스캐폴드를 **비파괴로** 만든다.
+공유 로직은 `@holiday-cfo/core` 유스케이스와 contracts다. CLI·HTTP·MCP는
+어댑터가 I/O만 변환한다.
+
+Supabase·Vercel·vinext 같은 공식 스킬은 `.agents/skills`에 두고, holiday
+쪽 래퍼 스킬이 순서만 맞춘다. 우리가 운영하는 Managed Web은 이 ADR 밖이다.
+</Decision>

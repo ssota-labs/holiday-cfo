@@ -1,0 +1,32 @@
+---
+title: ADR-002
+description: JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로
+type: decision
+summary: 장부 파일은 SQLite다. 변조 감지는 audit_log 해시 체인이다.
+---
+
+<Decision
+  id="ADR-002"
+  title="JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로"
+  status="accepted"
+  date="2026-07-17"
+  commit="74677cb"
+  rejected={[
+    { option: 'JSONL 파일을 진실로 두고 git log -p로 감사하기', because: '사용자는 git 커밋으로 감사를 보고 싶지 않았다. 저널은 조회도 어렵고(다시 읽으려면 처음부터 재생), 스키마가 바뀌어도 바이트 단위로 같아야 한다는 짐만 남는다.' },
+    { option: 'ledger.db를 gitignore에 넣기', because: '다른 기계에 백업하거나 어제 파일로 되돌리기 어렵다. 바이너리라서 diff는 안 보이지만, diff로 감사하려던 전제 자체가 이미 빠졌다.' },
+  ]}
+>
+장부의 기준은 **SQLite 파일** `.holiday/ledger.db`다. 이 파일을 커밋한다.
+
+감사는 `audit_log` **해시 체인**이다. 각 행이 직전 행의 해시에 묶이고, 거래 행은
+내용 해시에도 묶인다. 그래서 DB를 직접 열어 전기를 고쳐 잔액이 맞아 보여도
+`holiday verify`가 잡는다.
+
+**한계를 솔직히.** 실수로 한두 줄 건드린 것은 잡는다. 체인 전체를 다시 계산해
+맞추는 공격까지는 막지 못한다. 그때는 체인 끝(`head`)을 파일 밖에 남겨 둔다.
+`holiday verify --head`가 그 용도다.
+
+해시 방식은 버전을 올릴 수 있다. `CHAIN_HASH_VERSION`을 바꿔도 옛 행은 자기
+버전으로 계속 검사한다. JSONL을 바이트 단위로 영원히 고정하던 때와 달리,
+여기엔 빠져나갈 여지가 있다.
+</Decision>

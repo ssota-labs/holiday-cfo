@@ -1,0 +1,48 @@
+---
+title: tax return show
+description: holiday tax return show 명령 계약
+type: reference
+summary: 한 건의 신고서 헤더와 라인을 반환한다.
+id: SPEC-tax-return-show
+stage: accepted
+related:
+  - /docs/planning/prds/prd-tax-return-sor
+  - /docs/features/tax
+---
+
+<SpecVersion
+  spec="CLI"
+  version="0.2.4"
+  source="packages/cli/src/cli.ts"
+  history={[
+    {
+      version: '0.2.4',
+      date: '2026-07-19',
+      summary: 'tax return show — form/period/revision',
+      ref: 'packages/cli/src/cli.ts',
+    },
+  ]}
+/>
+
+> 이 페이지는 **latest**다. JSON 예시는 [tax 인덱스](/docs/spec/cli/tax#tax-return-show)를 본다.
+
+관련 기능: [tax](/docs/features/tax)
+
+<CommandSpec
+  command="tax return show"
+  mutates={false}
+  summary="한 건의 신고서 헤더와 라인을 반환한다."
+  signature={`holiday tax return show <year> [--form kr_global_income|kr_vat] [--period] [--revision]`}
+  flags={[
+    { name: '<year>', type: 'number', kind: 'arg', required: true, description: '귀속연도' },
+    { name: '--form', type: 'string', default: 'kr_global_income' },
+    { name: '--period', type: 'string', description: 'kr_vat 필수. kr_global_income은 annual' },
+    { name: '--revision', type: 'number', description: '생략 시 current(최신 non-superseded)' },
+  ]}
+  exits={[
+    { code: 0, meaning: '성공' },
+    { code: 1, meaning: 'not_found · LedgerError' },
+    { code: 2, meaning: '사용법 오류' },
+  ]}
+  example={`holiday tax return show 2025 --form kr_vat --period H1_final --json`}
+/>

@@ -1,5 +1,5 @@
 {
-  "title": "User Stories",
+  "title": "유저 스토리",
   "pages": [
     "us-ledger-init",
     "us-accounts",
@@ -14,7 +14,8 @@
     "us-close-assert",
     "us-cashflow-short",
     "us-verify",
-    "us-docs-first-development"
+    "us-docs-first-development",
+    "us-tax-return"
   ],
   "collapsible": true,
   "defaultOpen": false,

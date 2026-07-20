@@ -10,7 +10,8 @@
     "ingest",
     "fx",
     "close",
-    "cashflow"
+    "cashflow",
+    "tax"
   ],
   "collapsible": true,
   "defaultOpen": false

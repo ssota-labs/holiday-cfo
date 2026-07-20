@@ -52,8 +52,12 @@ import {
 import { Canvas, CanvasLegend } from './blocks/canvas';
 import { CommandSpec } from './blocks/command-spec';
 import { Decision } from './blocks/decision';
+import { DocKind } from './blocks/doc-kind';
+import { DocStatus, AdrStatus } from './blocks/doc-status';
 import { LedgerExample } from './blocks/ledger-example';
 import { Rule } from './blocks/rule';
+import { SchemaGraph } from './blocks/schema-graph';
+import { SchemaSnapshot } from './blocks/schema-snapshot';
 import { SpecVersion } from './blocks/spec-version';
 import { SchemaTable } from './blocks/schema-table';
 import { Glossary, Term } from './blocks/term';
@@ -81,7 +85,12 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     Term,
     Glossary,
     Decision,
+    DocKind,
+    DocStatus,
+    AdrStatus,
     SchemaTable,
+    SchemaGraph,
+    SchemaSnapshot,
     CommandSpec,
     SpecVersion,
     LedgerExample,

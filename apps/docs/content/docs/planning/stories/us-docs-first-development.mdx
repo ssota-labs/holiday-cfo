@@ -1,9 +1,10 @@
 ---
-title: US-docs-first-development
+title: us-docs-first-development
 description: 구현 전에 요구·계약·실행 계획을 검토 가능한 문서로 확정하고 싶다
 type: conceptual
 summary: 코드보다 기획이 먼저 기본 브랜치에 존재한다.
-id: US-docs-first-development
+id: us-docs-first-development
+ticker: us-014
 ---
 
 **As a** 저장소 관리자  
@@ -18,9 +19,13 @@ id: US-docs-first-development
 4. 구현 PR이 참조하는 계획은 PR의 base 브랜치에 `ready` 상태로 존재한다.
 5. 같은 PR에서 새 계획과 코드를 함께 추가하면 검증이 실패한다.
 6. 깨진 문서 참조와 중복 ID는 저장소 테스트가 실패한다.
+7. PRD·스토리 수락 기준은 기획자·비개발자가 읽고 체크할 수 있다 — 데이터·결과를
+   사람 말로 쓰고, 개발 은어만으로 본문을 끝내지 않는다 ([workflow](/docs/workflow/planning)).
+8. 기획 한글 본문(PRD·US·기능 수락 기준)은 `ready`/`active`로 올리기 전에
+   im-not-ai(`/humanize`)를 한 번 이상 실행하고 윤문을 반영한다.
 
 ### 추적
 
-- 스펙: [개발 선행 게이트](/docs/spec/development/docs-first-workflow)
-- 구현계획: [PLAN-docs-first-development](/docs/planning/plans/plan-docs-first-development)
-- PRD: [PRD-docs-first-development](/docs/planning/prds/prd-docs-first-development)
+- 스펙: [개발 선행 게이트](/docs/workflow/development)
+- 구현계획: [plan-docs-first-development](/docs/development/plans/plan-docs-first-development)
+- PRD: [prd-docs-first-development](/docs/planning/prds/prd-docs-first-development)

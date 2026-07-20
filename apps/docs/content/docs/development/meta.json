@@ -1,7 +1,8 @@
 {
-  "title": "개발 워크플로",
+  "title": "개발",
   "pages": [
-    "docs-first-workflow"
+    "plans",
+    "adr"
   ],
   "collapsible": true,
   "defaultOpen": false

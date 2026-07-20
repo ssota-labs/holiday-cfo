@@ -1,0 +1,64 @@
+---
+title: tax return add
+description: holiday tax return add 명령 계약
+type: reference
+summary: 관측된 세금 신고서 헤더·라인을 SoR에 append한다. 세액 공식 없음.
+id: SPEC-tax-return-add
+stage: accepted
+related:
+  - /docs/planning/prds/prd-tax-return-sor
+  - /docs/features/tax
+  - /docs/development/plans/plan-tax-return-sor
+---
+
+<SpecVersion
+  spec="CLI"
+  version="0.2.4"
+  source="packages/cli/src/cli.ts"
+  history={[
+    {
+      version: '0.2.4',
+      date: '2026-07-19',
+      summary: 'tax return add — 종합소득·부가세 SoR',
+      ref: 'packages/cli/src/cli.ts',
+    },
+  ]}
+/>
+
+> 이 페이지는 **latest**다. 전체 스키마·예시는 [tax 인덱스](/docs/spec/cli/tax#tax-return-add)를 본다.
+
+관련 기능: [tax](/docs/features/tax)
+
+<CommandSpec
+  command="tax return add"
+  mutates={true}
+  summary="관측된 세금 신고서 헤더·라인을 SoR에 append한다. 세액 공식 없음."
+  signature={`holiday tax return add --year --filed-on --data-file [--form kr_global_income|kr_vat] [--period] [--amend] [--note] [--source]`}
+  flags={[
+    { name: '--year', type: 'number', required: true, description: '귀속연도 YYYY' },
+    { name: '--filed-on', type: 'YYYY-MM-DD', required: true, description: '신고일' },
+    { name: '--data-file', type: 'path', required: true, description: '라인 JSON 파일' },
+    { name: '--form', type: 'string', default: 'kr_global_income', description: '신고서 종류' },
+    { name: '--period', type: 'string', description: '과세기간. kr_vat 필수' },
+    { name: '--amend', type: 'boolean', description: '수정신고 — 새 revision append' },
+    { name: '--note', type: 'string' },
+    { name: '--source', type: 'path', description: '원본 파일 경로 — sha256 출처 기록' },
+  ]}
+  exits={[
+    { code: 0, meaning: '성공' },
+    { code: 1, meaning: 'duplicate_tax_return · domain 거부 · LedgerError' },
+    { code: 2, meaning: '사용법 오류 (UsageError)' },
+  ]}
+  example={`holiday tax return add --year 2025 --filed-on 2026-06-22 --data-file filing.json --json`}
+/>
+
+## `--data-file` 스키마
+
+금액은 **소수 문자열**. `number` 금지. 키 레지스트리·필수 칸은
+[plan-tax-return-sor](/docs/development/plans/plan-tax-return-sor)와
+[tax 인덱스](/docs/spec/cli/tax#tax-return-add)가 기준이다.
+
+- `kr_global_income` / `global_income`: `income_amount`·`tax_base`·`payable_within_deadline` 필수
+- `kr_vat` / `vat`: `taxable_supply`·`output_tax`·`input_tax` 필수,
+  `payable_tax` \| `refundable_tax` 중 최소 하나
+- CLI는 라인 간 산술 관계를 검증·수정하지 않는다 (관측 SoR)

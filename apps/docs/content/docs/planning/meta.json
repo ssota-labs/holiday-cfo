@@ -1,13 +1,10 @@
 {
   "title": "기획",
   "pages": [
-    "vision",
     "personas",
-    "journeys",
-    "workflow",
     "prds",
     "stories",
-    "plans"
+    "journeys"
   ],
   "collapsible": true,
   "defaultOpen": true

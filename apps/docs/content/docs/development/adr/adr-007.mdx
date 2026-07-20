@@ -1,0 +1,30 @@
+---
+title: ADR-007
+description: CLI는 npm으로 배포한다. 플러그인에 번들을 커밋하지 않는다
+type: decision
+summary: CLI는 @holiday-cfo/cli npm. 플러그인은 스킬만, 에이전트는 npx.
+---
+
+<Decision
+  id="ADR-007"
+  title="CLI는 npm으로 배포한다. 플러그인에 번들을 커밋하지 않는다"
+  status="accepted"
+  date="2026-07-18"
+  commit="fb82051"
+  rejected={[
+    { option: '플러그인 저장소에 단일 파일 번들 커밋', because: '예전에 node:sqlite를 고른 이유(네이티브 애드온은 번들 불가)였다. 대시보드를 붙이면서 사용자 쪽은 어차피 npm install을 한다. 커밋된 바이너리는 금방 낡는다.' },
+    { option: '한쪽 호스트만 번들, 다른 쪽은 npx', because: '호스트마다 CLI가 달라지면 한쪽에서만 나는 버그가 생긴다. 번들은 실행해 봐야 검증되고, 검증 면을 둘로 늘릴 이유가 없다.' },
+  ]}
+>
+CLI는 npm 패키지 `@holiday-cfo/cli`로 배포한다. Claude Code·Codex 플러그인은
+**스킬만** 담고, 에이전트는 `npx @holiday-cfo/cli@latest`로 CLI를 받는다.
+첫 실행에 네트워크가 필요할 수 있지만, 저장소에 바이너리를 넣거나 재번들 CI를
+돌릴 필요는 없다.
+
+**`node:sqlite`는 그대로**다. 이유만 바뀌었다. “번들에 네이티브를 못 넣어서”가
+아니라, “의존성·네이티브 빌드가 없어 `npx` 첫 실행이 가볍다”는 쪽이다.
+
+버전 맞춤은 npm이 해 준다. `holiday dash init`이 만드는 프로젝트는
+`@holiday-cfo/blocks`를 CLI와 **같은 버전으로 핀**한다. CLI와 대시보드 블록
+어휘가 한 버전으로 맞춰진다.
+</Decision>

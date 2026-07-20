@@ -39,8 +39,10 @@ export const docs = defineDocs({
       status: z.enum(['draft', 'active', 'done']).optional(),
       /** Story IDs included in a PRD. */
       stories: z.array(z.string()).optional(),
-      /** Stable cross-document identifier (PRD-*, US-*, SPEC-*, PLAN-*). */
+      /** Stable document id (long descriptive), e.g. `prd-tax-return-sor`. */
       id: z.string().optional(),
+      /** Short ticker for badges, e.g. `prd-001`. */
+      ticker: z.string().optional(),
       /** Lifecycle for specs and implementation plans. */
       stage: z
         .enum(['draft', 'accepted', 'ready', 'active', 'done', 'superseded'])

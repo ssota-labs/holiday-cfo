@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 
 const PLAN_PATH_RE =
-  /^apps\/docs\/content\/docs\/planning\/plans\/[a-z0-9][a-z0-9-]*\.mdx$/;
+  /^apps\/docs\/content\/docs\/development\/plans\/[a-z0-9][a-z0-9-]*\.mdx$/;
 
 function frontmatter(source, file) {
   if (!source.startsWith('---\n')) throw new Error(`${file}: frontmatter must start on line 1`);
@@ -57,7 +57,7 @@ export function validateDocsFirst({ changedPaths, prBody, readBaseFile }) {
   const planPath = extractPlanPath(prBody);
   if (!planPath) {
     return [
-      'code changes require a valid `Plan: apps/docs/content/docs/planning/plans/plan-*.mdx` entry',
+      'code changes require a valid `Plan: apps/docs/content/docs/development/plans/plan-*.mdx` entry',
     ];
   }
 
@@ -77,7 +77,7 @@ export function validateDocsFirst({ changedPaths, prBody, readBaseFile }) {
     return [error instanceof Error ? error.message : String(error)];
   }
 
-  if (typeof data.id !== 'string' || !data.id.startsWith('PLAN-')) {
+  if (typeof data.id !== 'string' || !data.id.toUpperCase().startsWith('PLAN-')) {
     problems.push(`${planPath}: base plan is missing a PLAN-* id`);
   }
   if (data.stage !== 'ready' && data.stage !== 'active') {
