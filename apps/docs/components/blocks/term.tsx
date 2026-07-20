@@ -29,18 +29,18 @@ export function Term(props: TermProps) {
   const id = term.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   return (
-    <div id={id} className="not-prose border-fd-border my-4 border-l-2 py-1 pl-4">
-      <div className="flex flex-wrap items-baseline gap-2">
+    <div id={id} className="not-prose bg-fd-card rounded-lg border">
+      <div className="flex flex-wrap items-baseline gap-2 border-b px-4 py-3">
         <h4 className="font-semibold">{term}</h4>
         {ko ? <span className="text-fd-muted-foreground text-sm">{ko}</span> : null}
         {code ? (
           <code className="bg-fd-muted rounded px-1.5 py-0.5 font-mono text-xs">{code}</code>
         ) : null}
       </div>
-      <div className="prose-sm mt-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{children}</div>
+      <div className="prose-sm px-4 py-3 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{children}</div>
       {notTo ? (
-        <p className="text-fd-muted-foreground mt-2 text-sm">
-          <span className="font-medium">혼동 주의:</span> {notTo}
+        <p className="text-fd-muted-foreground border-t px-4 py-3 text-sm">
+          <span className="text-fd-foreground font-medium">혼동 주의:</span> {notTo}
         </p>
       ) : null}
     </div>
@@ -48,5 +48,5 @@ export function Term(props: TermProps) {
 }
 
 export function Glossary({ children }: { children?: React.ReactNode }) {
-  return <div className="not-prose my-6 flex flex-col gap-2">{children}</div>;
+  return <div className="not-prose my-6 flex flex-col gap-3">{children}</div>;
 }
