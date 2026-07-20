@@ -1,12 +1,20 @@
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
+import { ChevronLeft } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { DocKind, docKindFromSlug } from '@/components/blocks/doc-kind';
 import { DocsInlineToc } from '@/components/docs-inline-toc';
 import { getMDXComponents } from '@/components/mdx';
 import { adrFooterItems, source } from '@/lib/source';
+
+function isAdrDetail(slug: string[] | undefined): boolean {
+  return (
+    slug?.[0] === 'development' && slug[1] === 'adr' && slug.length === 3
+  );
+}
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params;
@@ -18,6 +26,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   const ticker = typeof page.data.ticker === 'string' ? page.data.ticker : undefined;
   const toc = page.data.toc;
   const footerItems = adrFooterItems(params.slug);
+  const showAdrIndexLink = isAdrDetail(params.slug);
 
   return (
     <DocsPage
@@ -25,6 +34,15 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       full={page.data.full}
       footer={footerItems ? { items: footerItems } : undefined}
     >
+      {showAdrIndexLink ? (
+        <Link
+          href="/docs/development/adr"
+          className="text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground -mt-1 inline-flex w-fit items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm no-underline transition-colors"
+        >
+          <ChevronLeft className="size-4 shrink-0" />
+          ADR
+        </Link>
+      ) : null}
       <DocsTitle>
         <span className="inline-flex flex-wrap items-center gap-2">
           {kind ? <DocKind kind={kind} ticker={ticker} /> : null}
