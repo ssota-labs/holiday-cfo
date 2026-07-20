@@ -8,11 +8,10 @@ import { loader } from 'fumadocs-core/source';
  */
 const INDEX_ONLY_FOLDER_URLS = new Set([
   '/docs/planning/prds',
+  '/docs/planning/stories',
   '/docs/development/plans',
   '/docs/spec/cli',
 ]);
-const STORIES_FOLDER_URL = '/docs/planning/stories';
-const JOURNEYS_URL = '/docs/planning/stories/journeys';
 
 function normalizeUrl(url: string) {
   return url.length > 1 && url.endsWith('/') ? url.slice(0, -1) : url;
@@ -28,14 +27,6 @@ export const source = loader({
           const indexUrl = node.index?.url ? normalizeUrl(node.index.url) : null;
           if (indexUrl && INDEX_ONLY_FOLDER_URLS.has(indexUrl)) {
             return { ...node, children: [], defaultOpen: false };
-          }
-          if (indexUrl === STORIES_FOLDER_URL) {
-            return {
-              ...node,
-              children: node.children.filter(
-                (child) => child.type === 'page' && normalizeUrl(child.url) === JOURNEYS_URL,
-              ),
-            };
           }
           return node;
         },

@@ -3,7 +3,8 @@
   "pages": [
     "personas",
     "prds",
-    "stories"
+    "stories",
+    "journeys"
   ],
   "collapsible": true,
   "defaultOpen": true

@@ -51,8 +51,8 @@ const config = {
       },
       { source: '/docs/planning/vision', destination: '/docs/vision', permanent: true },
       {
-        source: '/docs/planning/journeys',
-        destination: '/docs/planning/stories/journeys',
+        source: '/docs/planning/stories/journeys',
+        destination: '/docs/planning/journeys',
         permanent: true,
       },
       {
