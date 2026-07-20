@@ -35,3 +35,45 @@ export const source = loader({
     ],
   },
 });
+
+/** Prev/next footer cards among ADR siblings (hidden from the sidebar tree). */
+export function adrFooterItems(slug: string[] | undefined):
+  | {
+      previous?: { name: string; description?: string; url: string };
+      next?: { name: string; description?: string; url: string };
+    }
+  | undefined {
+  if (!slug || slug[0] !== 'development' || slug[1] !== 'adr' || slug.length !== 3) {
+    return undefined;
+  }
+
+  const siblings = source
+    .getPages()
+    .filter(
+      (page) =>
+        page.slugs[0] === 'development' &&
+        page.slugs[1] === 'adr' &&
+        page.slugs.length === 3,
+    )
+    .sort((a, b) =>
+      (a.slugs[2] ?? '').localeCompare(b.slugs[2] ?? '', undefined, { numeric: true }),
+    );
+
+  const index = siblings.findIndex((page) => page.slugs[2] === slug[2]);
+  if (index === -1) return undefined;
+
+  const toItem = (page: (typeof siblings)[number]) => ({
+    name: page.data.title,
+    description:
+      typeof page.data.description === 'string' ? page.data.description : undefined,
+    url: page.url,
+  });
+
+  const previous = index > 0 ? toItem(siblings[index - 1]!) : undefined;
+  const next = index < siblings.length - 1 ? toItem(siblings[index + 1]!) : undefined;
+  if (!previous && !next) return undefined;
+  return {
+    ...(previous ? { previous } : {}),
+    ...(next ? { next } : {}),
+  };
+}

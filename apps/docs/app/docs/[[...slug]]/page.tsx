@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 
 import { DocKind, docKindFromSlug } from '@/components/blocks/doc-kind';
 import { getMDXComponents } from '@/components/mdx';
-import { source } from '@/lib/source';
+import { adrFooterItems, source } from '@/lib/source';
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params;
@@ -17,9 +17,14 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   const kind = docKindFromSlug(params.slug);
   const ticker = typeof page.data.ticker === 'string' ? page.data.ticker : undefined;
   const toc = page.data.toc;
+  const footerItems = adrFooterItems(params.slug);
 
   return (
-    <DocsPage toc={toc} full={page.data.full}>
+    <DocsPage
+      toc={toc}
+      full={page.data.full}
+      footer={footerItems ? { items: footerItems } : undefined}
+    >
       <DocsTitle>
         <span className="inline-flex flex-wrap items-center gap-2">
           {kind ? <DocKind kind={kind} ticker={ticker} /> : null}
