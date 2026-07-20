@@ -12,6 +12,13 @@ import type {
   IncomeSource,
 } from '../domain/kr-income.js';
 import type { RecurringExpense, RecurringIncome } from '../domain/recurring.js';
+import type {
+  TaxForm,
+  TaxPeriod,
+  TaxReturnDetail,
+  TaxReturnHeader,
+  ValidatedTaxReturn,
+} from '../domain/tax.js';
 import type { TxnId, ValidatedTxn } from '../domain/txn.js';
 
 /**
@@ -227,6 +234,19 @@ export interface LedgerRead {
   }): Promise<readonly IncomeSettlementWithLines[]>;
   getIncomeSettlement(id: string): Promise<IncomeSettlementWithLines | null>;
 
+  listTaxReturns(filter?: {
+    form?: TaxForm;
+    year?: number;
+    period?: TaxPeriod;
+    includeSuperseded?: boolean;
+  }): Promise<readonly TaxReturnHeader[]>;
+  getTaxReturn(query: {
+    form: TaxForm;
+    year: number;
+    period: TaxPeriod;
+    revision?: number;
+  }): Promise<TaxReturnDetail | null>;
+
   listLoans(): Promise<readonly LoanWithSchedule[]>;
   getLoan(accountId: AccountId): Promise<LoanWithSchedule | null>;
 
@@ -356,6 +376,11 @@ export interface LedgerUow extends LedgerRead {
     settlement: IncomeSettlement,
     lines: readonly IncomeSettlementLine[],
   ): Promise<void>;
+  /**
+   * Append a validated tax return (header + lines) atomically.
+   * When `v.supersedeId` is set, marks that row superseded in the same transaction.
+   */
+  addTaxReturn(v: ValidatedTaxReturn): Promise<TaxReturnHeader>;
   /** Replaces the loan and its whole schedule — a forecast is allowed to change. */
   upsertLoan(loan: Loan, rows: readonly LoanScheduleRow[]): Promise<void>;
 

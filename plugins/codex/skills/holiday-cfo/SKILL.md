@@ -96,6 +96,7 @@ is a self-contained file under `references/workflows/`. Scheduling is in
 - **Simulate** — `references/workflows/simulate.md` — `cashflow --spend/--receive`.
 - **Ask** — `references/workflows/ask.md` — answer from the ledger; no market advice.
 - **KR income** — `references/workflows/kr-income.md` — statutory regimes; never invent 3.3%/보험요율.
+- **Tax return** — `references/workflows/tax-return.md` — observe filing numbers only; no tax formula.
 
 ## Recording from a screenshot
 

@@ -146,5 +146,19 @@ export const MIGRATIONS: readonly InlinedMigration[] = [
       "ALTER TABLE \"income_source\" ADD CONSTRAINT \"income_source_deposit_account_id_account_id_fkey\" FOREIGN KEY (\"deposit_account_id\") REFERENCES \"account\"(\"id\");",
       "ALTER TABLE \"income_source\" ADD CONSTRAINT \"income_source_commodity_commodity_code_fkey\" FOREIGN KEY (\"commodity\") REFERENCES \"commodity\"(\"code\");"
     ]
+  },
+  {
+    "name": "20260720021212_marvelous_korvac",
+    "hash": "29e4ab92f92580aa50a550e3bbb28f349ceb555feef420197e1570c55ff8e8b4",
+    "statements": [
+      "CREATE TABLE \"tax_return\" (\n\t\"id\" text PRIMARY KEY,\n\t\"form\" text NOT NULL,\n\t\"tax_year\" integer NOT NULL,\n\t\"period\" text NOT NULL,\n\t\"filed_on\" text NOT NULL,\n\t\"revision\" integer NOT NULL,\n\t\"status\" text NOT NULL,\n\t\"commodity\" text NOT NULL,\n\t\"note\" text,\n\t\"source_path\" text,\n\t\"source_sha256\" text,\n\t\"created_at\" text NOT NULL,\n\tCONSTRAINT \"tax_return_form_enum\" CHECK (\"form\" IN ('kr_global_income','kr_vat')),\n\tCONSTRAINT \"tax_return_period_enum\" CHECK (\"period\" IN ('annual','H1_provisional','H1_final','H2_provisional','H2_final')),\n\tCONSTRAINT \"tax_return_status_enum\" CHECK (\"status\" IN ('current','superseded')),\n\tCONSTRAINT \"tax_return_revision_positive\" CHECK (\"revision\" >= 1),\n\tCONSTRAINT \"tax_return_year_range\" CHECK (\"tax_year\" BETWEEN 2000 AND 2100)\n);",
+      "CREATE TABLE \"tax_return_line\" (\n\t\"return_id\" text,\n\t\"column_key\" text,\n\t\"line_key\" text,\n\t\"value_kind\" text NOT NULL,\n\t\"value_scaled\" bigint NOT NULL,\n\tCONSTRAINT \"tax_return_line_pk\" PRIMARY KEY(\"return_id\",\"column_key\",\"line_key\"),\n\tCONSTRAINT \"tax_return_line_value_kind_enum\" CHECK (\"value_kind\" IN ('amount','rate'))\n);",
+      "CREATE UNIQUE INDEX \"tax_return_unique\" ON \"tax_return\" (\"form\",\"tax_year\",\"period\",\"revision\");",
+      "CREATE UNIQUE INDEX \"tax_return_one_current\" ON \"tax_return\" (\"form\",\"tax_year\",\"period\") WHERE \"status\" = 'current';",
+      "CREATE INDEX \"tax_return_by_year\" ON \"tax_return\" (\"tax_year\");",
+      "CREATE INDEX \"tax_return_by_form_year\" ON \"tax_return\" (\"form\",\"tax_year\");",
+      "ALTER TABLE \"tax_return\" ADD CONSTRAINT \"tax_return_commodity_commodity_code_fkey\" FOREIGN KEY (\"commodity\") REFERENCES \"commodity\"(\"code\");",
+      "ALTER TABLE \"tax_return_line\" ADD CONSTRAINT \"tax_return_line_return_id_tax_return_id_fkey\" FOREIGN KEY (\"return_id\") REFERENCES \"tax_return\"(\"id\") ON DELETE CASCADE;"
+    ]
   }
 ];

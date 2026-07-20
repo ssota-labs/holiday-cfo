@@ -160,6 +160,14 @@ Equity:Opening                # 개시잔액의 상대 계정
 선납·환급 대기는 비용이 아니라 `Assets:Receivable:Tax`다. 확정·종결 때
 `Expenses:Tax`로 옮긴다. “통장에서 나간 금액”과 “비용으로 인식한 세금”은 질문이
 다르다.
+
+**세금 신고서(종합소득·부가세)는 전표와 별도 SoR다.** 홈택스·신고서에 찍힌
+숫자는 `holiday tax return add --year … --filed-on … --data-file …`로 남긴다.
+세액을 다시 계산하지 않는다 — 관측값만. 부가세는 `--form kr_vat --period
+H1_final`처럼 기수가 필요하다. 조회는 `holiday tax return show <year> --json`.
+수정신고는 `--amend`(덮어쓰기 금지). 상세는 스킬
+`references/workflows/tax-return.md`.
+
 **두 Uncategorized 계정은 카테고리가 아니라 대기열이다.** 수집이 규칙에 안 걸린
 건을 대기(draft)로 파킹하는 곳 — 건강한 장부는 이곳을 비운다
 (`holiday rule add` → `holiday review apply-rules --accept`, 또는 대시보드에서

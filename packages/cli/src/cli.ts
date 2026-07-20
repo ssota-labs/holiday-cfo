@@ -81,6 +81,15 @@ import {
   type IncomeRegime,
   type IncomeSource,
   type IncomeSettlementLine,
+  TaxReturn,
+  describeTaxError,
+  defaultPeriodForForm,
+  formAcceptsPeriod,
+  isTaxForm,
+  isTaxPeriod,
+  taxLinesToColumns,
+  type TaxForm,
+  type TaxPeriod,
 } from '@holiday-cfo/core';
 
 import { bakeDatasets, scaffold, scaffoldLedgerDocs } from './dash.js';
@@ -1091,6 +1100,306 @@ income
           `총 ${money(r.settlement.grossMinor)} → 실 ${money(r.settlement.netMinor)}` +
           (r.regime ? `  (${describeRegime(r.regime as IncomeRegime)})` : ''),
       );
+    }
+  });
+
+const TAX_DATA_FILE = z.object({
+  commodity: z.string().min(1),
+  columns: z.record(z.string(), z.record(z.string(), z.string())),
+});
+
+function resolveTaxFormPeriod(
+  formRaw: string | undefined,
+  periodRaw: string | undefined,
+): { form: TaxForm; period: TaxPeriod } {
+  const form = formRaw ?? 'kr_global_income';
+  if (!isTaxForm(form)) {
+    throw new UsageError(`unknown --form ${JSON.stringify(form)}. Use kr_global_income or kr_vat.`);
+  }
+  let period: TaxPeriod;
+  if (periodRaw === undefined || periodRaw === '') {
+    const def = defaultPeriodForForm(form);
+    if (!def) {
+      throw new UsageError(
+        `--period is required for --form ${form} (H1_provisional|H1_final|H2_provisional|H2_final).`,
+      );
+    }
+    period = def;
+  } else {
+    if (!isTaxPeriod(periodRaw)) {
+      throw new UsageError(`unknown --period ${JSON.stringify(periodRaw)}.`);
+    }
+    period = periodRaw;
+  }
+  if (!formAcceptsPeriod(form, period)) {
+    throw new UsageError(`form ${form} does not accept period ${period}.`);
+  }
+  return { form, period };
+}
+
+function rejectJsonNumbersInColumns(columns: Record<string, Record<string, unknown>>): void {
+  for (const [col, cells] of Object.entries(columns)) {
+    for (const [line, v] of Object.entries(cells)) {
+      if (typeof v === 'number') {
+        throw new UsageError(`columns.${col}.${line} must be a decimal string, not a JSON number.`);
+      }
+    }
+  }
+}
+
+const tax = program.command('tax').description('세금 신고서 SoR — 관측값만. 세액 공식 없음');
+const taxReturn = tax.command('return').description('신고서 표지·세액표');
+
+taxReturn
+  .command('add')
+  .description('관측된 세금 신고서 헤더·라인을 SoR에 append한다')
+  .requiredOption('--year <yyyy>', '귀속연도')
+  .requiredOption('--filed-on <date>', '신고일 YYYY-MM-DD')
+  .requiredOption('--data-file <path>', '라인 JSON 파일')
+  .option('--form <form>', 'kr_global_income | kr_vat', 'kr_global_income')
+  .option('--period <period>', '과세기간. kr_vat 필수')
+  .option('--amend', '수정신고 — 새 revision append', false)
+  .option('--note <text>')
+  .option('--source <path>', '원본 파일 경로 — sha256 출처 기록')
+  .action(
+    async (o: {
+      year: string;
+      filedOn: string;
+      dataFile: string;
+      form: string;
+      period?: string;
+      amend?: boolean;
+      note?: string;
+      source?: string;
+    }) => {
+      const year = Number(o.year);
+      if (!Number.isInteger(year)) {
+        throw new UsageError(`--year must be an integer YYYY, got ${JSON.stringify(o.year)}`);
+      }
+      const { form, period } = resolveTaxFormPeriod(o.form, o.period);
+      const filedOn = assertIsoDate(o.filedOn);
+
+      const { readFile } = await import('node:fs/promises');
+      let raw: string;
+      try {
+        raw = await readFile(o.dataFile, 'utf8');
+      } catch (e) {
+        throw new UsageError(`cannot read --data-file: ${(e as Error).message}`);
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw) as unknown;
+      } catch (e) {
+        throw new UsageError(`--data-file is not valid JSON: ${(e as Error).message}`);
+      }
+      if (parsed && typeof parsed === 'object' && 'columns' in parsed) {
+        rejectJsonNumbersInColumns(
+          (parsed as { columns: Record<string, Record<string, unknown>> }).columns,
+        );
+      }
+      const data = TAX_DATA_FILE.parse(parsed);
+
+      let sourcePath: string | null = null;
+      let sourceSha256: string | null = null;
+      if (o.source) {
+        sourcePath = o.source;
+        sourceSha256 = await sha256Bytes(new Uint8Array(await readFile(o.source)));
+      }
+
+      const ws = requireWorkspace();
+      const store = await openLedger(ws);
+      try {
+        const header = await store.unitOfWork(async (uow) => {
+          const existing = await uow.getTaxReturn({ form, year, period });
+          const validated = o.amend
+            ? (() => {
+                if (!existing) {
+                  throw new LedgerError(
+                    'not_found',
+                    `no current ${form} ${year} ${period} to amend. Add the first filing without --amend.`,
+                  );
+                }
+                return TaxReturn.amend({
+                  id: nextUlid(),
+                  previous: existing,
+                  filedOn,
+                  commodity: data.commodity as CommodityCode,
+                  note: o.note ?? null,
+                  sourcePath,
+                  sourceSha256,
+                  createdAt: new Date().toISOString(),
+                  columns: data.columns,
+                  amounts,
+                });
+              })()
+            : TaxReturn.create({
+                id: nextUlid(),
+                form,
+                taxYear: year,
+                period,
+                filedOn,
+                commodity: data.commodity as CommodityCode,
+                note: o.note ?? null,
+                sourcePath,
+                sourceSha256,
+                createdAt: new Date().toISOString(),
+                columns: data.columns,
+                amounts,
+              });
+          if (!validated.ok) {
+            throw new LedgerError(
+              validated.error[0]?.code ?? 'invalid_tax_return',
+              validated.error.map(describeTaxError).join('\n'),
+            );
+          }
+          try {
+            return await uow.addTaxReturn(validated.value);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (/UNIQUE|unique|constraint/i.test(msg)) {
+              throw new LedgerError(
+                'duplicate_tax_return',
+                `a ${form} return for ${year} ${period} revision already exists. Use --amend for a new revision.`,
+              );
+            }
+            throw e;
+          }
+        });
+        if (jsonMode()) {
+          return out({
+            id: header.id,
+            form: header.form,
+            taxYear: header.taxYear,
+            period: header.period,
+            filedOn: header.filedOn,
+            revision: header.revision,
+            status: header.status,
+            commodity: header.commodity,
+          });
+        }
+        note(
+          `✓ 신고서를 남겼습니다 — ${header.form} ${header.taxYear} ${header.period} ` +
+            `(${header.revision}차). 다음: holiday tax return show ${header.taxYear}` +
+            (header.form === 'kr_vat' ? ` --form kr_vat --period ${header.period}` : '') +
+            ' --json',
+        );
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+taxReturn
+  .command('list')
+  .description('저장된 세금 신고서 헤더를 나열한다')
+  .option('--form <form>')
+  .option('--year <yyyy>')
+  .option('--period <period>')
+  .option('--all', 'superseded revision 포함', false)
+  .action(async (o: { form?: string; year?: string; period?: string; all?: boolean }) => {
+    let form: TaxForm | undefined;
+    let period: TaxPeriod | undefined;
+    if (o.form !== undefined) {
+      if (!isTaxForm(o.form)) throw new UsageError(`unknown --form ${JSON.stringify(o.form)}`);
+      form = o.form;
+    }
+    if (o.period !== undefined) {
+      if (!isTaxPeriod(o.period)) throw new UsageError(`unknown --period ${JSON.stringify(o.period)}`);
+      period = o.period;
+    }
+    let year: number | undefined;
+    if (o.year !== undefined) {
+      year = Number(o.year);
+      if (!Number.isInteger(year)) throw new UsageError(`--year must be an integer`);
+    }
+
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const rows = await store.read((r) =>
+      r.listTaxReturns({
+        ...(form ? { form } : {}),
+        ...(year !== undefined ? { year } : {}),
+        ...(period ? { period } : {}),
+        includeSuperseded: Boolean(o.all),
+      }),
+    );
+    await store.close();
+
+    if (jsonMode()) return out(rows);
+    if (rows.length === 0) return note('신고서 기록이 없습니다.');
+    for (const h of rows) {
+      const mark = h.status === 'current' ? '✓' : '·';
+      note(
+        `${mark} ${h.taxYear}  ${h.form.padEnd(18)} ${h.period.padEnd(16)} ` +
+          `r${h.revision}  ${h.filedOn}` +
+          (h.status === 'superseded' ? '  (대체됨)' : ''),
+      );
+    }
+  });
+
+taxReturn
+  .command('show <year>')
+  .description('한 건의 신고서 헤더와 라인을 반환한다')
+  .option('--form <form>', 'kr_global_income | kr_vat', 'kr_global_income')
+  .option('--period <period>', 'kr_vat 필수')
+  .option('--revision <n>', '생략 시 current')
+  .action(async (yearArg: string, o: { form: string; period?: string; revision?: string }) => {
+    const year = Number(yearArg);
+    if (!Number.isInteger(year)) throw new UsageError(`year must be an integer YYYY`);
+    const { form, period } = resolveTaxFormPeriod(o.form, o.period);
+    let revision: number | undefined;
+    if (o.revision !== undefined) {
+      revision = Number(o.revision);
+      if (!Number.isInteger(revision) || revision < 1) {
+        throw new UsageError(`--revision must be an integer >= 1`);
+      }
+    }
+
+    const ws = requireWorkspace();
+    const store = await openLedger(ws);
+    const detail = await store.read((r) =>
+      r.getTaxReturn({
+        form,
+        year,
+        period,
+        ...(revision !== undefined ? { revision } : {}),
+      }),
+    );
+    await store.close();
+
+    if (!detail) {
+      throw new LedgerError(
+        'not_found',
+        `no tax return for ${form} ${year} ${period}` +
+          (revision !== undefined ? ` revision ${revision}` : ''),
+      );
+    }
+
+    const columns = taxLinesToColumns(detail.lines);
+    const payload = {
+      id: detail.id,
+      form: detail.form,
+      taxYear: detail.taxYear,
+      period: detail.period,
+      filedOn: detail.filedOn,
+      revision: detail.revision,
+      status: detail.status,
+      commodity: detail.commodity,
+      note: detail.note,
+      sourcePath: detail.sourcePath,
+      sourceSha256: detail.sourceSha256,
+      columns,
+    };
+    if (jsonMode()) return out(payload);
+
+    note(
+      `${detail.form} ${detail.taxYear} ${detail.period} — ${detail.revision}차` +
+        (detail.status === 'superseded' ? ' (대체됨)' : ''),
+    );
+    note(`신고일 ${detail.filedOn} · ${detail.commodity}`);
+    for (const [col, cells] of Object.entries(columns)) {
+      note(`  [${col}]`);
+      for (const [k, v] of Object.entries(cells)) note(`    ${k}: ${v}`);
     }
   });
 

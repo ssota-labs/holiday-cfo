@@ -49,6 +49,14 @@ import {
   type PostingQuery,
   type PostingRow,
   type StoreCapabilities,
+  type TaxForm,
+  type TaxPeriod,
+  type TaxReturnDetail,
+  type TaxReturnHeader,
+  type TaxReturnId,
+  type TaxReturnStatus,
+  type TaxValueKind,
+  type ValidatedTaxReturn,
   Txn,
   type TxnId,
   type TxnQuery,
@@ -58,6 +66,7 @@ import {
   type VerifyProblem,
   type VerifyReport,
   assertEngineTier,
+  headerOf,
 } from '@holiday-cfo/core';
 
 import { CHAIN_HASH_VERSION, chainHash, GENESIS_HASH, stableJson, txnContentHash } from './chain.js';
@@ -973,6 +982,140 @@ class SqlUow implements LedgerUow {
     });
   }
 
+  async listTaxReturns(filter?: {
+    form?: TaxForm;
+    year?: number;
+    period?: TaxPeriod;
+    includeSuperseded?: boolean;
+  }): Promise<readonly TaxReturnHeader[]> {
+    const where: string[] = [];
+    const params: SqlValue[] = [];
+    if (filter?.form) {
+      where.push('form = ?');
+      params.push(filter.form);
+    }
+    if (filter?.year !== undefined) {
+      where.push('tax_year = ?');
+      params.push(filter.year);
+    }
+    if (filter?.period) {
+      where.push('period = ?');
+      params.push(filter.period);
+    }
+    if (!filter?.includeSuperseded) {
+      where.push(`status = 'current'`);
+    }
+    const sql =
+      `SELECT * FROM tax_return` +
+      (where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '') +
+      ` ORDER BY tax_year DESC, form, period, revision DESC`;
+    const rows = await this.db.all<TaxReturnRowRaw>(sql, ...params);
+    return rows.map(mapTaxReturnHeader);
+  }
+
+  async getTaxReturn(query: {
+    form: TaxForm;
+    year: number;
+    period: TaxPeriod;
+    revision?: number;
+  }): Promise<TaxReturnDetail | null> {
+    let row: TaxReturnRowRaw | undefined;
+    if (query.revision !== undefined) {
+      row = await this.db.get<TaxReturnRowRaw>(
+        `SELECT * FROM tax_return WHERE form = ? AND tax_year = ? AND period = ? AND revision = ?`,
+        query.form,
+        query.year,
+        query.period,
+        query.revision,
+      );
+    } else {
+      row = await this.db.get<TaxReturnRowRaw>(
+        `SELECT * FROM tax_return WHERE form = ? AND tax_year = ? AND period = ? AND status = 'current'`,
+        query.form,
+        query.year,
+        query.period,
+      );
+    }
+    if (!row) return null;
+    const lines = await this.#taxReturnLines(row.id);
+    return { ...mapTaxReturnHeader(row), lines };
+  }
+
+  async #taxReturnLines(returnId: string): Promise<TaxReturnDetail['lines']> {
+    return (
+      await this.db.all<{
+        column_key: string;
+        line_key: string;
+        value_kind: string;
+        value_scaled: bigint;
+      }>('SELECT * FROM tax_return_line WHERE return_id = ? ORDER BY column_key, line_key', returnId)
+    ).map((r) => ({
+      columnKey: r.column_key,
+      lineKey: r.line_key,
+      valueKind: r.value_kind as TaxValueKind,
+      valueScaled: toBigInt(r.value_scaled),
+    }));
+  }
+
+  async addTaxReturn(v: ValidatedTaxReturn): Promise<TaxReturnHeader> {
+    if (v.supersedeId) {
+      const prev = await this.db.get<TaxReturnRowRaw>('SELECT * FROM tax_return WHERE id = ?', v.supersedeId);
+      if (!prev) {
+        throw new Error(`holiday: cannot supersede missing tax return ${v.supersedeId}`);
+      }
+      if (prev.status !== 'current') {
+        throw new Error(`holiday: tax return ${v.supersedeId} is not current`);
+      }
+      if (
+        prev.form !== v.form ||
+        toInt(prev.tax_year) !== v.taxYear ||
+        prev.period !== v.period
+      ) {
+        throw new Error(`holiday: supersede target does not match form/year/period`);
+      }
+      await this.db.run(`UPDATE tax_return SET status = 'superseded' WHERE id = ?`, v.supersedeId);
+    }
+
+    await this.db.run(
+      `INSERT INTO tax_return (
+         id, form, tax_year, period, filed_on, revision, status, commodity,
+         note, source_path, source_sha256, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      v.id,
+      v.form,
+      v.taxYear,
+      v.period,
+      v.filedOn,
+      v.revision,
+      v.status,
+      v.commodity,
+      v.note,
+      v.sourcePath,
+      v.sourceSha256,
+      v.createdAt,
+    );
+    for (const line of v.lines) {
+      await this.db.run(
+        `INSERT INTO tax_return_line (return_id, column_key, line_key, value_kind, value_scaled)
+         VALUES (?, ?, ?, ?, ?)`,
+        v.id,
+        line.columnKey,
+        line.lineKey,
+        line.valueKind,
+        line.valueScaled,
+      );
+    }
+    await this.#appendAudit('tax_return_add', v.id, {
+      form: v.form,
+      taxYear: v.taxYear,
+      period: v.period,
+      revision: v.revision,
+      lines: v.lines.length,
+      supersedeId: v.supersedeId,
+    });
+    return headerOf(v);
+  }
+
   async listLoans(): Promise<readonly LoanWithSchedule[]> {
     const loans = await this.db.all<LoanRowRaw>('SELECT * FROM loan ORDER BY account_id');
     // Sequential, not Promise.all: on SQLite the driver is one connection and
@@ -1662,6 +1805,38 @@ interface IncomeSettlementRowRaw {
   statute_as_of: string;
   txn_id: string | null;
   label: string | null;
+}
+
+interface TaxReturnRowRaw {
+  id: string;
+  form: string;
+  tax_year: bigint;
+  period: string;
+  filed_on: string;
+  revision: bigint;
+  status: string;
+  commodity: string;
+  note: string | null;
+  source_path: string | null;
+  source_sha256: string | null;
+  created_at: string;
+}
+
+function mapTaxReturnHeader(r: TaxReturnRowRaw): TaxReturnHeader {
+  return {
+    id: r.id as TaxReturnId,
+    form: r.form as TaxForm,
+    taxYear: toInt(r.tax_year),
+    period: r.period as TaxPeriod,
+    filedOn: r.filed_on as IsoDate,
+    revision: toInt(r.revision),
+    status: r.status as TaxReturnStatus,
+    commodity: r.commodity as CommodityCode,
+    note: r.note,
+    sourcePath: r.source_path,
+    sourceSha256: r.source_sha256,
+    createdAt: r.created_at,
+  };
 }
 
 function mapIncomeSettlement(r: IncomeSettlementRowRaw): IncomeSettlement {

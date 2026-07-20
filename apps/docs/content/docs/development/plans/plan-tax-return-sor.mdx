@@ -5,7 +5,7 @@ type: guide
 summary: tax_return/tax_return_line 마이그레이션, 종합소득·부가세 form, POLICY-021, tax return CLI.
 id: plan-tax-return-sor
 ticker: plan-002
-stage: ready
+stage: done
 changeType: product
 prd: prd-tax-return-sor
 specs:
@@ -330,7 +330,7 @@ holiday tax return show 2025 --form kr_vat --period H1_final --json
 ## 구현 순서
 
 1. 도메인 타입·팩토리·라인 레지스트리·테스트 (POLICY-021 고정)
-2. policy.mdx `<Rule test=…>` 링크
+2. policy.mdx Rule 컴포넌트(`id` / `test` / `testName`) 링크
 3. SQLite/Postgres 스키마 + migration-9 (위 DDL)
 4. port + `store-sql` 구현 + store-testkit 적합성 케이스
 5. CLI `tax return add|list|show`
