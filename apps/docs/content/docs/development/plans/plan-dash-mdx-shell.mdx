@@ -19,6 +19,8 @@ codeAreas:
   - plugins/claude-code
   - plugins/codex
   - apps/docs
+  - AGENTS.md
+  - pnpm-lock.yaml
 related:
   - /docs/planning/prds/prd-dash-mdx-shell
   - /docs/spec/dash-mdx-shell
@@ -45,6 +47,8 @@ json-render/`spec.json`을 제거한다. 숫자는 API·bake. 결정은
 | `packages/ui` | dash/MDX에 노출할 셸 칸 re-export 또는 문서화(필요 시) |
 | `plugins/*/skills/holiday-cfo/` | dash 안내를 fumadocs·MDX·API·`dash data`로 갱신 |
 | `apps/docs` | 본 기획·스펙·ADR·기능 페이지 (이 PR). 구현 PR에서 스펙 이력·비전 문구 정합 |
+| `AGENTS.md` | 레이아웃 설명(vinext/`spec.json` → fumadocs/MDX/API) |
+| `pnpm-lock.yaml` | blocks에서 `@json-render/*` 제거에 따른 lockfile |
 
 ## 구현 순서
 
