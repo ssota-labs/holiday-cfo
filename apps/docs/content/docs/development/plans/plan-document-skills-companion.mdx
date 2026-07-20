@@ -2,7 +2,7 @@
 title: plan-document-skills-companion
 description: 셋업 companion 안내와 호스트별 SessionStart skills update 훅을 넣는다
 type: guide
-summary: 문서 스킬 본문은 벤더링하지 않고, setup 안내 + 전역 skills update 훅만 추가한다.
+summary: 문서 스킬 본문은 벤더링하지 않고, 전 호스트(Claude 포함) skills.sh 설치 안내 + 전역 update 훅만 추가한다.
 id: plan-document-skills-companion
 ticker: plan-004
 stage: ready
@@ -28,7 +28,8 @@ related:
 
 [prd-document-skills-companion](/docs/planning/prds/prd-document-skills-companion)대로
 엑셀·PDF·워드·슬라이드 문서 스킬을 장부 플러그인 **companion**으로 붙인다.
-본문 복사는 하지 않는다. 셋업 안내 + 세션 시작 `npx skills update -y`(전역)만 넣는다.
+본문 복사는 하지 않는다. **기본 설치는 전 호스트 skills.sh**(`npx skills add … -g -y`)이고,
+세션 시작은 `npx skills update -y`(전역)다. Claude Code 마켓 플러그인은 기본 경로가 아니다.
 
 ## 영향 범위
 
@@ -44,7 +45,7 @@ related:
 
 ## 구현 순서
 
-1. setup 워크플로에 Claude marketplace + skills.sh `-g -y` 네 스킬 안내를 넣는다
+1. setup 워크플로에 skills.sh `-g -y` 네 스킬 안내만 넣는다 (Claude 포함, 마켓 기본 경로 없음)
 2. 공유 갱신 스크립트(선택) — exit 0으로 soft-fail 래핑, stderr만 남김
 3. Claude Code `hooks/hooks.json` SessionStart 연결
 4. Codex `hooks/hooks.json` SessionStart 연결 + trust 안내
@@ -63,8 +64,8 @@ related:
 
 ### 수동 테스트 / 기획 체크
 
-1. Claude Code: 셋업 문구대로 `document-skills` 설치 후 xlsx/pdf 언급이 동작하는지
-2. 전역 `npx skills add … -g -y` 후 세션 재시작 → `skills update`가 no-op 또는 갱신
+1. Claude Code: 셋업의 `npx skills add … -g -y`만으로 xlsx/pdf가 잡히는지 (마켓 안내 없음)
+2. 전역 설치 후 세션 재시작 → `skills update`가 no-op 또는 갱신
 3. 네트워크 차단/실패 시에도 장부 명령 대화가 이어지는지
 4. 모노레포에서 세션 훅을 돌려도 루트 `skills-lock.json` 해시가 변하지 않는지
 5. Codex: 훅 trust 전/후 동작 차이 확인
