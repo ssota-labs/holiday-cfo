@@ -1,8 +1,8 @@
 ---
 title: plan-dash-mdx-shell
-description: dash 템플릿을 MDX 페이지 셸로 바꾸고 Fumadocs 이식은 하지 않는다
+description: dash에 Fumadocs식 MDX 계약 + 대시보드 칸을 붙인다. DocsLayout은 이식하지 않는다
 type: guide
-summary: vinext 유지, spec.json → MDX 페이지, ledger.json bake 유지, 닫힌 blocks 컴포넌트.
+summary: getMDXComponents형 등록, blocks를 MDX 태그로, vinext·스냅샷 유지.
 id: plan-dash-mdx-shell
 ticker: plan-009
 stage: ready
@@ -28,9 +28,10 @@ related:
 
 ## 목표
 
-[prd-dash-mdx-shell](/docs/planning/prds/prd-dash-mdx-shell)대로 장부 화면
-작성을 MDX 페이지로 연다. 숫자는 CLI 스냅샷만 쓰고, Fumadocs/Next를 dash
-런타임으로 넣지 않는다. 결정 본문은 [ADR-012](/docs/development/adr/adr-012).
+[prd-dash-mdx-shell](/docs/planning/prds/prd-dash-mdx-shell)대로 장부 화면에
+문서 사이트와 같은 MDX 등록·타입 계약을 두고, 레지스트리에 대시보드 칸을
+추가한다. 숫자는 CLI 스냅샷만 쓴다. DocsLayout/Next 문서 파이프라인은
+이식하지 않는다. 결정 본문은 [ADR-012](/docs/development/adr/adr-012).
 
 ## 영향 범위
 
@@ -44,11 +45,13 @@ related:
 
 ## 구현 순서
 
-1. **스파이크(짧게):** vinext 템플릿에서 MDX + 닫힌 컴포넌트 레지스트리 한 페이지가
-   스냅샷을 읽는지 확인. Fumadocs 패키지는 의존에 넣지 않는다.
-2. 템플릿 기본 페이지(`index` + 예시 두 번째 페이지)와 네비 규칙을 정한다.
-3. `Dashboard` 등 기존 블록을 MDX 태그로 쓰게 export한다. json-render flat graph는
-   내부 구현이든 폐기든 한 경로로 정리한다(외부 계약은 MDX).
+1. **스파이크(짧게):** vinext에서 `getMDXComponents`형 레지스트리 + MDX 한 페이지가
+   스냅샷을 읽는지 확인. 컴파일러는 `@mdx-js` Vite 경로를 기본으로 두고,
+   `fumadocs-mdx`를 얇게 쓸지는 의존 무게·vinext 호환을 보고 고른다.
+   `fumadocs-ui` / `next`는 dash 의존에 넣지 않는다.
+2. dash용 frontmatter Zod와 기본 페이지(`index` + 예시 두 번째 페이지)·네비를 정한다.
+3. `@holiday-cfo/blocks`를 MDX 태그로 등록한다 (`CashRunway` 등). json-render
+   flat graph는 내부 구현이든 폐기든 한 경로로 정리한다(외부 계약은 MDX 등록).
 4. `dash init` / `dash data` — 데이터 bake만, 사용자 MDX non-clobber.
 5. `spec.json` 호환: 변환 스크립트 또는 한 버전 병행 로드 중 하나를 고른다.
 6. 스킬·`AGENTS.md` — “숫자 쓰지 말 것”, 페이지 추가 방법, `dash data` 갱신.
@@ -74,7 +77,8 @@ related:
 3. 장부 변경 → `dash data` → 숫자만 바뀌고 페이지 문장 유지
 4. 로컬에서 분류 대기 클릭 → CLI 경로
 5. 정적 빌드에서 쓰기 불가 안내
-6. 사용자 dash `package.json`에 fumadocs/next 없음
+6. 사용자 dash `package.json`에 `fumadocs-ui` / `next` 없음
+   (`getMDXComponents`형 API와 `mdx/types`는 허용)
 
 ## 마이그레이션과 호환성
 
@@ -88,7 +92,8 @@ related:
 |---|---|
 | MDX에 숫자 리터럴 유혹 | props 차단 + 스킬 문구 + (선택) lint |
 | 에이전트가 과한 React를 씀 | 닫힌 레지스트리만 노출 |
-| Fumadocs “그냥 가져오기” 재발 | ADR-012 + 수락 기준 7 |
+| DocsLayout/Next를 dash에 끌어오기 | ADR-012 — 채택은 MDX 계약, 거절은 사이트 런타임 |
+| MDX 계약을 무시하고 페이지별 import | 레지스트리-only + 미등록 태그 실패 테스트 |
 | vinext MDX 도구 마찰 | 스파이크를 순서 1로 고정 |
 
 롤백: 템플릿·스킬을 `spec.json` 경로로 되돌리면 된다. 원장 데이터 영향 없음.

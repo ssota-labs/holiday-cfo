@@ -1,8 +1,8 @@
 ---
 title: Dash MDX 셸
-description: 장부 화면은 MDX 페이지 + CLI 스냅샷. Fumadocs 런타임 이식 금지.
+description: 장부 화면은 Fumadocs식 MDX 계약 + 대시보드 칸 + CLI 스냅샷.
 type: reference
-summary: 레이아웃은 MDX, 숫자는 ledger.json. 닫힌 컴포넌트. vinext 유지.
+summary: getMDXComponents형 등록·MDXComponents 타입. DocsLayout/Next는 이식 안 함.
 id: SPEC-dash-mdx-shell
 stage: accepted
 related:
@@ -21,12 +21,31 @@ related:
 
 1. 화면 배치는 **MDX 페이지 트리**로 쓴다 (`spec.json` 단일 그래프를 대체하는
    방향).
-2. 숫자는 `holiday dash data`가 구운 **스냅샷 파일**에서만 읽는다.
-3. 런타임은 기존처럼 **가벼운 vinext 템플릿**이다. `apps/docs`의 Fumadocs/Next
-   스택을 사용자 dash 폴더로 이식하지 않는다.
-4. [ADR-008](/docs/development/adr/adr-008) 조종석/사진 경계를 유지한다.
+2. MDX **디자인·타입**은 문서 사이트와 같은 층이다 — 전역 레지스트리,
+   `MDXComponents`, Zod frontmatter. 레지스트리에 대시보드 칸을 추가한다.
+3. 숫자는 `holiday dash data`가 구운 **스냅샷 파일**에서만 읽는다.
+4. 호스트는 기존처럼 **가벼운 vinext 템플릿**이다. `fumadocs-ui` DocsLayout과
+   `apps/docs` Next 파이프라인을 사용자 dash 폴더로 이식하지 않는다.
+5. [ADR-008](/docs/development/adr/adr-008) 조종석/사진 경계를 유지한다.
 
 ## 인터페이스
+
+### MDX 계약 (docs와 맞추는 층)
+
+문서 사이트의 `getMDXComponents`와 같은 모양이다. 페이지는 칸을 import하지
+않는다. 템플릿이 등록한 이름만 태그로 쓴다.
+
+| 층 | dash | docs (`apps/docs`) |
+|---|---|---|
+| 페이지 | `src/content/**/*.mdx` | `content/docs/**/*.mdx` |
+| 등록 | `getMDXComponents()`형 레지스트리 | `components/mdx.tsx` |
+| 타입 | `MDXComponents` (`mdx/types`) + 닫힌 대시보드 어휘 | 동일 + 문서 블록 |
+| frontmatter | dash용 Zod (제목·요약 등). Diátaxis `type` 필수는 아님 | 기획·정책용 확장 스키마 |
+| 도메인 칸 | `@holiday-cfo/blocks`만 | `Rule`, `SchemaTable`, … |
+| 사이트 크롬 | 없음 (가벼운 네비면 충분) | `fumadocs-ui` DocsLayout |
+
+컴파일러 구현(`@mdx-js` Vite 플러그인 vs 얇은 fumadocs-mdx 호환)은 내부
+선택이다. 수락 기준은 **등록·타입·닫힌 어휘**가 위 표를 지키는가다.
 
 ### CLI (관찰 가능)
 
@@ -121,4 +140,6 @@ MDX에서 쓸 수 있는 도메인 칸은 `@holiday-cfo/blocks`가 허용하는 
 4. 칸 props로 금액을 넣을 수 없다
 5. 로컬 분류 대기 클릭 → CLI 경로가 동작한다
 6. 정적 배포본에서 쓰기가 되지 않는다
-7. 사용자 dash `package.json`에 `fumadocs-*` / `next`가 dash 런타임 의존으로 없다
+7. 사용자 dash에 `fumadocs-ui` DocsLayout / `next`가 런타임 의존으로 없다
+   (MDX 컴파일이 내부적으로 얇은 호환 패키지를 쓰더라도, 문서 사이트 스택
+   이식으로 보이지 않아야 한다)
