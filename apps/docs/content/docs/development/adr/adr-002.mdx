@@ -1,0 +1,28 @@
+---
+title: ADR-002
+description: JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로
+type: decision
+summary: JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로
+---
+
+<Decision
+  id="ADR-002"
+  title="JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로"
+  status="accepted"
+  date="2026-07-17"
+  commit="74677cb"
+  rejected={[
+    { option: 'JSONL 저널을 SoR로 + git log -p를 감사 수단으로', because: '사용자가 git 커밋으로 감사하길 원치 않았다. 그러면 저널은 쿼리도 안 되고(rebuild는 순차 replay뿐) byte-identical 라운드트립을 스키마 버전 넘어 영원히 보장하는 대가만 남는다.' },
+    { option: 'SQLite .db를 gitignore', because: '오프머신 백업과 "어제 파일로 되돌리기"를 잃는다. 바이너리라 diff는 안 나오지만, diff를 보는 건 애초에 git 감사였고 그건 뺐다.' },
+  ]}
+>
+`.db`가 system of record이고 커밋된다. 감사는 `audit_log` 해시 체인 — 각 행이 직전 행에
+커밋하고, 거래 행은 **내용 해시**에 커밋한다. 손으로 전기를 고치면 잔액은 맞아도
+`verify`가 잡는다.
+
+**정직한 한계:** 우발적 변조는 잡지만 체인 전체를 재계산하는 사람은 못 막는다. head를
+파일 밖에 앵커해야 닫힌다 — `holiday verify --head`가 그 용도다.
+
+저널과 달리 해시는 버전 dispatch가 된다. `CHAIN_HASH_VERSION`을 올리면 과거 행은 자기
+버전으로 계속 검증된다. byte-stable 저널엔 없던 탈출구다.
+</Decision>

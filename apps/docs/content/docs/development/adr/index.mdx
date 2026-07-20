@@ -1,0 +1,34 @@
+---
+title: ADR
+description: 무엇을 골랐고, 무엇을 왜 버렸나
+type: overview
+summary: 거부한 대안이 본문이다. 코드를 읽어선 알 수 없는 부분이라서.
+---
+
+**거부한 대안이 각 항목의 본문이다.** 무엇을 골랐는지는 누구나 코드를 읽어서 알 수
+있다. 무엇을 시도했다 버렸는지는 아무도 못 읽고, 그게 정확히 1년 뒤에 다시 제안되는
+것이다. "환율을 그냥 저장하면 안 되나?"에는 답이 있고, 그 답은 누군가 원장을 다시
+쓰기 전에 찾을 수 있는 곳에 있어야 한다.
+
+`status`는 되돌릴 수 있는지를 정직하게 말한다 — `accepted`는 바뀔 수 있고, `locked`는
+과거를 다시 쓰는 마이그레이션 없이는 못 바꾼다. 개별 ADR은 사이드바에 펼치지 않는다 —
+아래에서 고른다.
+
+| | ID | Status | Date | 제목 |
+|---|---|---|---|---|
+| <DocKind kind="ADR" ticker="adr-001" /> | [adr-001](/docs/development/adr/adr-001) | `locked` | 2026-07-17 | 환율이 아니라 상대금액으로 균형을 잡는다 |
+| <DocKind kind="ADR" ticker="adr-002" /> | [adr-002](/docs/development/adr/adr-002) | `accepted` | 2026-07-17 | JSONL 저널을 버리고 SQLite를 원장으로, 감사는 해시 체인으로 |
+| <DocKind kind="ADR" ticker="adr-003" /> | [adr-003](/docs/development/adr/adr-003) | `accepted` | 2026-07-17 | 이율은 스케일드 bigint. float도 decimal.js도 아니다 |
+| <DocKind kind="ADR" ticker="adr-004" /> | [adr-004](/docs/development/adr/adr-004) | `accepted` | 2026-07-17 | 현금은 계정 플래그다. 코드 접두어가 아니다 |
+| <DocKind kind="ADR" ticker="adr-005" /> | [adr-005](/docs/development/adr/adr-005) | `accepted` | 2026-07-17 | 스키마는 drizzle-kit. 쿼리는 우리 것 |
+| <DocKind kind="ADR" ticker="adr-006" /> | [adr-006](/docs/development/adr/adr-006) | `accepted` | 2026-07-17 | 스토어는 하나. 방언만 갈라진다 |
+| <DocKind kind="ADR" ticker="adr-007" /> | [adr-007](/docs/development/adr/adr-007) | `accepted` | 2026-07-18 | CLI는 npm으로 배포한다. 플러그인에 번들을 커밋하지 않는다 |
+| <DocKind kind="ADR" ticker="adr-008" /> | [adr-008](/docs/development/adr/adr-008) | `accepted` | 2026-07-18 | 로컬 dash는 조종석, 배포 dash는 사진 |
+| <DocKind kind="ADR" ticker="adr-009" /> | [adr-009](/docs/development/adr/adr-009) | `accepted` | 2026-07-18 | BYOC 멀티타깃 — 벤더 SDK는 템플릿에만, D1은 적합성 전 engine 금지 |
+| <DocKind kind="ADR" ticker="adr-010" /> | [adr-010](/docs/development/adr/adr-010) | `accepted` | 2026-07-19 | 세금 신고서는 저널 밖 사실 테이블 — 세액 공식 없음 |
+
+## 상태
+
+- `accepted`: 바뀔 수 있음
+- `locked`: 과거를 다시 쓰는 마이그레이션 없이는 못 바꿈
+- `superseded`: 다른 결정으로 대체됨

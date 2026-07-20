@@ -1,0 +1,23 @@
+---
+title: ADR-003
+description: 이율은 스케일드 bigint. float도 decimal.js도 아니다
+type: decision
+summary: 이율은 스케일드 bigint. float도 decimal.js도 아니다
+---
+
+<Decision
+  id="ADR-003"
+  title="이율은 스케일드 bigint. float도 decimal.js도 아니다"
+  status="accepted"
+  date="2026-07-17"
+  commit="45b293c"
+  rejected={[
+    { option: 'IEEE 754 double', because: '0.1 + 0.2 !== 0.3이 블로그 글에선 웃기지만 360번 복리로 굴리면 안 웃기다. 이 원장은 금액에 float을 쓰지 않는데 이율에만 쓸 이유가 없다.' },
+    { option: 'decimal.js', because: '순수 JS라 번들은 되지만, @holiday-cfo/core는 설치 스텝 없는 단일파일 플러그인 바이너리에 인라인된다. 의존성은 값어치를 증명해야 하고, 이건 40줄 고정소수점으로 된다.' },
+  ]}
+>
+18자리 스케일 정수. 360회 곱셈에 누적 오차가 원 단위로 1e-10 수준이라 무의미하다.
+
+반올림은 **half away from zero** — 은행이 하는 방식이다. banker's rounding으로 영리하게
+굴면 `loan check`가 매달 ₩1 차이를 영원히 보고한다.
+</Decision>

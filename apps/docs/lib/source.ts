@@ -10,6 +10,7 @@ const INDEX_ONLY_FOLDER_URLS = new Set([
   '/docs/planning/prds',
   '/docs/planning/stories',
   '/docs/development/plans',
+  '/docs/development/adr',
   '/docs/spec/cli',
 ]);
 

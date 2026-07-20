@@ -1,0 +1,24 @@
+---
+title: ADR-010
+description: 세금 신고서는 저널 밖 사실 테이블 — 세액 공식 없음
+type: decision
+summary: 세금 신고서는 저널 밖 사실 테이블 — 세액 공식 없음
+---
+
+<Decision
+  id="ADR-010"
+  title="세금 신고서는 저널 밖 사실 테이블 — 세액 공식 없음"
+  status="accepted"
+  date="2026-07-19"
+  rejected={[
+    { option: '세금 = Expenses:Tax 전표만 (전용 모듈 없음)', because: '납부·비용 인식은 전표로 충분하지만, 소득금액·과세표준·결정세액은 전표 leg에 들어가지 않는다. 계정 잔액으로 신고서를 재구성할 수 없다.' },
+    { option: 'txn.meta_json에 신고서 라인 저장', because: '쿼리·유니크 제약·개정(revision) 이력이 깨진다. meta는 주석이지 SoR 스키마가 아니다.' },
+    { option: '세율표·공제 한도로 세액을 재계산해 검증', because: '할부수수료와 같은 함정이다. 관측값만 믿어야 하고, 공식을 넣으면 그럴듯하게 틀린 숫자가 과거를 오염시킨다 (POLICY-006과 같은 정신).' },
+    { option: '수정신고 시 행 upsert/덮어쓰기', because: '신고 이력 자체가 감사 대상이다. 원본과 수정을 구분하지 않으면 “언제 무엇을 신고했는지”를 잃는다. revision append + superseded.' },
+  ]}
+>
+`tax_return` + `tax_return_line`에 신고서 관측값을 저장한다. 저널(txn/posting)과
+분리된 **사실** 테이블이다 — 스케줄(예측)이 아니고, 마감 스냅샷도 아니다.
+납부 현금 이동은 기존처럼 `Expenses:Tax:*` 전표다. 신고서 SoR는 “얼마를 신고·결정했는가”에만
+답한다.
+</Decision>
