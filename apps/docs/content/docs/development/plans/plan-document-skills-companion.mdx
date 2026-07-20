@@ -5,7 +5,7 @@ type: guide
 summary: 문서 스킬 본문은 벤더링하지 않고, 유저 프로젝트 cwd에 npx skills add/update -p만 붙인다.
 id: plan-document-skills-companion
 ticker: plan-004
-stage: ready
+stage: done
 changeType: product
 prd: prd-document-skills-companion
 specs:
@@ -51,7 +51,9 @@ related:
 4. Codex `hooks/hooks.json` SessionStart 연결 + trust 안내
 5. `holiday init`이 Cursor `sessionStart` 훅을 비파괴로 쓰게 한다
 6. README·에이전트 스펙에 companion/훅을 짧게 반영
-7. 플러그인·패키지 버전 bump + 태그 배포 (사용자-facing)
+7. 사용자-facing 배포는 후속 `plan-release-tagged-deploys`로 버전 bump + `v*` 태그
+   (이 구현 PR에는 public `packages/*/package.json` 버전을 넣지 않는다 — base
+   `codeAreas` 밖이라 docs-first가 거부한다)
 
 ## 검증 계획
 
