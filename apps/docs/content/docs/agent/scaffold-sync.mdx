@@ -1,0 +1,170 @@
+---
+title: 장부 복제본 동기화
+description: 플러그인 버전별 쪽지(필수·선택)와 에이전트 반영, 장부 지문 계약
+type: reference
+summary: 본선은 플러그인 changelog + 에이전트. 필수·선택 분리. 세션 시작 자동 쓰기 금지.
+id: SPEC-scaffold-sync
+stage: accepted
+related:
+  - /docs/planning/prds/prd-scaffold-sync
+  - /docs/planning/stories/us-scaffold-sync
+  - /docs/agent/document-skills-companion
+  - /docs/agent/skill
+  - /docs/spec/cli/init
+---
+
+## 범위
+
+`holiday init` / `holiday dash init`이 장부 프로젝트에 **복사해 둔 파일**을
+이후 릴리스에서 맞추는 방식을 정한 계약이다.
+
+**본선 UX:** 플러그인에 두는 버전별 변경 쪽지 → 에이전트가 읽고 필수·선택으로 반영.  
+**보조:** 장부 폴더 지문(어디까지 맞췄는지·파일 손댐). CLI 상태 조회는 선택적으로 구현한다.
+
+하지 않는 것:
+
+- `npx skills update -p`가 장부 지침·dash를 쓰기
+- SessionStart에서 관리 파일 자동 쓰기
+- 원장 DB 내용 변경
+- 필수 항목을 알림·결정 없이 반영
+
+## 계층 (혼동 방지)
+
+| 계층 | 갱신 수단 | 이 스펙 |
+|---|---|---|
+| 문서 스킬(xlsx/pdf/…) | `skills update -p` ([companion](/docs/agent/document-skills-companion)) | 범위 밖 |
+| holiday-cfo 플러그인 `SKILL.md`·쪽지 | 호스트 플러그인 업데이트 | 쪽지 **원본**은 여기 |
+| 장부 `AGENTS.md` / `CLAUDE.md` / Cursor 훅 | init 복사 → 쪽지 따라 에이전트 반영 | 대상 |
+| `dash/` 관리 파일 | dash init 복사 → 쪽지 따라 반영 | 대상 |
+| `dash/content/**`, `dash/app/dashboard/**`, bake JSON | 사용자·`dash data` | **사용자 소유 — 기본 비대상** |
+
+## 인터페이스
+
+### 1) 플러그인 변경 쪽지 (changelog)
+
+위치(구현 시 고정, 예):
+
+`plugins/claude-code/skills/holiday-cfo/references/scaffold-changelog/`  
+Codex `references/`가 심링크면 **한 소스**다.
+
+SKILL.md에는 progressive disclosure만 둔다: “복제본이 뒤처진 것 같으면
+`references/scaffold-changelog/`를 읽어라”. 쪽지 본문은 SKILL.md에 넣지 않는다.
+
+버전마다 항목을 append한다. 항목에 넣을 내용(사람 말 + 기계가 읽을 키):
+
+| 이름 | 코드 키(예) | 예시 |
+|---|---|---|
+| 항목 id | `id` | `presence-intro` |
+| 버전 | `version` | `0.4.2` |
+| 무게 | `severity` | `required` \| `optional` |
+| 대상 경로 | `targets` | `AGENTS.md`, `CLAUDE.md` |
+| 요약 | `summary` | 정체성 자기소개 절 추가 |
+| 적용 안내 | `apply` | 에이전트가 수행할 구체 절차(절 추가·핀 bump 등) |
+| 손댔을 때 | `ifDirty` | 절만 병합, 사용자 문단 유지, 통째 교체 금지 등 |
+
+**무게 규약**
+
+| 무게 | 에이전트 의무 |
+|---|---|
+| `required` | 미반영이면 사용자에게 **빠짐없이** 알리고, 반영 또는 보류(짧은 이유)를 확인받는다. 결정 없이 장부 기록을 계속해도 되는지는 항목 `apply`에 적되, 보안·정체성·깨진 핀처럼 운전 전제가 깨지면 반영/보류가 끝날 때까지 관련 작업을 미룬다. |
+| `optional` | 한 번 짧게 제안한다. 거절·나중에·무응답이면 같은 세션에서 재촉하지 않는다. 반영 id는 지문에 “제안함/거절”로 적어 두고 반복을 줄인다. |
+
+릴리스에 복제본 영향이 없으면 그 버전 쪽지를 비우거나 파일을 두지 않는다.
+복제본을 바꾸는 릴리스에서는 쪽지 없이 템플릿만 고치지 않는다(드리프트 방지).
+
+### 2) 장부 지문
+
+경로 예: `.holiday/scaffold.json` (확정은 구현).
+
+| 이름 | 예시 | 용도 |
+|---|---|---|
+| 마지막 맞춤 버전 | `0.4.1` | 쪽지를 어디부터 읽을지 |
+| 반영한 항목 id | `presence-intro` | 중복 적용 방지 |
+| 선택 항목 처분 | `nice-wording=declined` | 재촉 억제 |
+| 관리 파일 해시 | `AGENTS.md` → 해시 | 손댐(`dirty`) 판별 |
+| 시각 | ISO | 디버그 |
+
+`init` / `dash init`이 파일을 **새로 쓸 때** 해시·세대를 기록한다.
+이미 있는 파일을 건너뛸 때 사용자 내용을 “깨끗한 지문”으로 가져오지 않는다.
+
+지문 없는 옛 장부: `legacy`/`unknown`. 에이전트는 현재 플러그인 쪽지의
+recent required를 보수적으로 안내하고, 확인 후에만 반영한다.
+
+### 3) 에이전트 절차 (정본)
+
+1. 플러그인·CLI 세대와 지문의 마지막 맞춤 버전을 비교한다.
+2. 그 사이(및 미반영 id) 쪽지 항목을 모은다.
+3. 필수를 먼저 요약 → 항목마다 반영/보류. `dirty`면 `ifDirty`를 읽고 확인한다.
+4. 선택을 짧게 제안(한 묶음으로).
+5. 반영한 뒤 지문(버전·id·해시)을 갱신한다.
+6. 원본 템플릿이 필요하면 CLI 패키지 템플릿 또는 쪽지 `apply`에 적힌 절차를 따른다.
+
+“알아서 전부 맞춤”을 기본으로 두지 않는다. 특히 `dirty`·사용자 소유 경로.
+
+### 4) CLI 보조 (선택·권장)
+
+읽기 전용 상태(이름 예: `holiday scaffold status`)를 두는 것을 권장한다.
+
+- 마지막 맞춤 버전, 미반영 required/optional 개수
+- 파일별 `current` / `stale` / `dirty` / `missing` / `unknown`
+
+쓰기는 에이전트 편집 또는 명시적 sync 중 하나로 구현하되,
+**쪽지 없는 통째 템플릿 덮어쓰기만으로 본선을 대체하지 않는다.**
+
+### 5) 세션 시작
+
+문서 스킬 `skills update -p`만. 복제본 쓰기 금지.  
+선택: 미반영 필수가 있으면 한 줄 경고만.
+
+## 손댐 판별
+
+| 상태 | 뜻 |
+|---|---|
+| `current` | 해시=지문, 미반영 쪽지 없음 |
+| `stale` | 손 안 댐(해시=지문)이나 미반영 쪽지 있음 |
+| `dirty` | 해시≠지문 |
+| `missing` | 관리 대상 파일 없음 |
+| `unknown` | 지문 없음 |
+
+## 관리 대상 / 비대상 (초안)
+
+**쪽지·동기화 후보:** `AGENTS.md`, `CLAUDE.md`, init Cursor 훅, dash 핀·브리지·dash `AGENTS.md` 등 템플릿 소유 파일.
+
+**기본 비대상:** `.holiday/ledger.db`, `dash/content/**`, `dash/app/dashboard/**`, `dash/data/ledger.json`.
+
+목록은 구현에서 상수+테스트로 고정한다.
+
+## 오류
+
+| 상황 | 기대 |
+|---|---|
+| 쪽지 형식 깨짐 | 에이전트가 안전하게 중단·보고. 추측 반영 금지 |
+| dirty + required | `ifDirty` 없으면 통째 교체 거부, 사용자에게 방법 질문 |
+| 지문 없음 | legacy 안내 후 확인 기반 진행 |
+| `.holiday/` 없음 | 장부가 없다고 명확히 알린다 |
+
+## 거부한 대안
+
+| 대안 | 거부 이유 |
+|---|---|
+| SessionStart 자동 덮어쓰기 | 사용자 수정을 알리지 않고 삭제 |
+| `skills update`에 지침 갱신 혼입 | companion과 축이 다르다 |
+| CLI만으로 템플릿 통째 교체가 본선 | 필수/선택·손댐 맥락은 에이전트 쪽지가 더 잘 전달한다 |
+| 쪽지 없이 해시 stale만 보고 “알아서 최신 템플릿 적용” | 무엇이 왜 바뀌었는지·필수 여부가 보이지 않는다 |
+| 모든 항목을 필수로 | 선택 문구 변경까지 매 세션 막히면 피로해진다 |
+
+## 호환성
+
+- init “있으면 건너뛰기” 유지. 이후 갱신은 쪽지+에이전트 경로.
+- 플러그인·CLI 버전은 릴리스에서 함께 올리는 것을 전제로 한다(기존 태그 배포 계약).
+- 사용자-facing이면 버전 bump + `v*` 태그.
+
+## 수락 기준
+
+1. 복제본을 바꾸는 릴리스에 쪽지 항목이 있고 severity가 있다
+2. 에이전트 절차가 스킬에 명시되고, 쪽지는 references에만 있다
+3. required/optional 의무가 위 표와 같다
+4. dirty는 확인·`ifDirty` 없이 통째 덮지 않는다
+5. SessionStart가 관리 파일을 쓰지 않는다
+6. 사용자 소유 경로가 기본 대상이 아니다
+7. 장부 지문으로 미반영·중복 적용을 줄일 수 있다

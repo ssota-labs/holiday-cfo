@@ -1,0 +1,95 @@
+---
+title: plan-scaffold-sync
+description: 플러그인 scaffold changelog·장부 지문·에이전트 절차를 넣는다
+type: guide
+summary: 본선은 references/scaffold-changelog(필수·선택) + 에이전트. 지문·status는 보조.
+id: plan-scaffold-sync
+ticker: plan-011
+stage: ready
+changeType: product
+prd: prd-scaffold-sync
+specs:
+  - SPEC-scaffold-sync
+stories:
+  - us-scaffold-sync
+codeAreas:
+  - plugins/claude-code/skills/holiday-cfo
+  - plugins/codex/skills/holiday-cfo
+  - packages/cli
+  - packages/cli/templates/ledger
+  - packages/cli/templates/dash
+  - apps/docs
+related:
+  - /docs/planning/prds/prd-scaffold-sync
+  - /docs/agent/scaffold-sync
+  - /docs/agent/document-skills-companion
+---
+
+## 목표
+
+[prd-scaffold-sync](/docs/planning/prds/prd-scaffold-sync)대로
+복제본 변경을 플러그인 쪽지에 필수·선택으로 남기고, 에이전트가 읽고 장부 폴더에
+맞춘다. 사용자 수정분은 확인 없이 덮지 않는다.
+
+## 영향 범위
+
+| 영역 | 변경 |
+|---|---|
+| `plugins/.../holiday-cfo/references/scaffold-changelog/` | 버전별 쪽지 포맷·시드(필요 시 빈 index). Codex는 심링크로 공유 |
+| `SKILL.md` (양 호스트) | progressive disclosure 한 절 — 뒤처지면 changelog 읽기 |
+| setup / 짧은 워크플로 reference | 에이전트 절차(필수 먼저·선택 한 번) |
+| `packages/cli` | `.holiday` 지문 읽기·쓰기, init/dash 신규 파일 시 기록, 권장 `scaffold status` |
+| 템플릿 | 지문과 맞출 관리 파일 목록만 코드와 함께 둔다 |
+| `apps/docs` | 본 기획·스펙. 구현 PR에서 스킬 SpecVersion 이력 |
+
+SessionStart에 복제본 **쓰기 없음**.
+
+## 구현 순서
+
+1. 쪽지 포맷(필드·severity)·디렉터리 레이아웃을 플러그인에 고정하고 예제 1건
+2. SKILL.md + workflow에 에이전트 절차(미반영 수집 → 필수 → 선택 → 지문 갱신)
+3. 장부 지문 스키마·init/dash 신규 기록·dirty 판별 테스트
+4. `holiday scaffold status`(권장) — 미반영 required/optional 개수·파일 상태 JSON
+5. 릴리스 체크리스트: 템플릿을 바꾸면 같은 버전 쪽지 항목 필수(문서/CI 가드 검토)
+6. 스킬↔CLI 정합·docs check
+7. 버전 bump + `v*` 태그
+
+## 검증 계획
+
+### 자동 테스트
+
+- 쪽지 파싱·severity 필드 존재(플러그인 쪽 스모크 또는 docs/plugin 테스트)
+- 지문 기록·dirty/stale
+- status가 미반영 항목 수를 맞게 보고한다(CLI 구현 시)
+- `pnpm --filter holiday-plugin test`
+- `pnpm --filter @holiday-cfo/docs check:planning`
+
+### 수동 테스트 / 기획 체크
+
+1. 플러그인만 올린 장부: 에이전트가 쪽지 필수를 요약·확인 후 반영
+2. 선택 항목 거절 후 같은 세션에서 재촉 없음
+3. AGENTS.md를 손댄 뒤 required: 통째 덮지 않고 ifDirty 안내
+4. SessionStart 후 파일 내용 불변
+5. dash 메모 MDX가 쪽지 기본 대상이 아님
+
+## 마이그레이션과 호환성
+
+- 지문 없는 장부: legacy 안내, 확인 후 진행
+- init 스킵 동작 유지
+- 원장 마이그레이션 없음
+
+## 위험과 롤백
+
+| 위험 | 대응 |
+|---|---|
+| 템플릿만 고치고 쪽지 누락 | 릴리스 가드 또는 체크리스트 |
+| 필수를 과다 지정 | 리뷰에서 severity 검수. 말투 polish는 optional |
+| 에이전트가 쪽지 무시 | SKILL 상단에 가까운 절 + status 한 줄 경고 |
+
+롤백: 쪽지·지문·스킬 절을 제거한다. 원장과는 무관하다.
+
+## 완료 조건
+
+- SPEC 수락 기준 충족
+- 기획 성공 지표 수동 재현
+- 계획 `done`

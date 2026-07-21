@@ -3,7 +3,8 @@
   "pages": [
     "skill",
     "document-skills-companion",
-    "scheduled-routines"
+    "scheduled-routines",
+    "scaffold-sync"
   ],
   "collapsible": true,
   "defaultOpen": false
