@@ -17,6 +17,7 @@
     "ingest",
     "review",
     "cashflow",
+    "status",
     "tax",
     "insurance",
     "verify",

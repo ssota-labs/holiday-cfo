@@ -7,9 +7,15 @@ summary: 전역 --json, stderr 에러 봉투, exit code가 계약이다.
 
 <SpecVersion
   spec="CLI"
-  version="0.2.4"
+  version="0.4.3"
   source="packages/cli/src/cli.ts"
   history={[
+    {
+      version: '0.4.3',
+      date: '2026-07-23',
+      summary: '장부 구조를 status.md에 다시 쓰는 status 명령',
+      ref: 'packages/cli/src/cli.ts',
+    },
     {
       version: '0.2.4',
       date: '2026-07-19',
@@ -36,16 +42,16 @@ summary: 전역 --json, stderr 에러 봉투, exit code가 계약이다.
 
 제품 진입점은 CLI다. 구현 기준은 `packages/cli/src/cli.ts`다.
 
-<PackageInfo name="@holiday-cfo/cli" currentVersion="0.2.4">
+<PackageInfo name="@holiday-cfo/cli" currentVersion="0.4.3">
   <PackageInfoHeader>
     <PackageInfoName />
     <PackageInfoVersion />
   </PackageInfoHeader>
   <PackageInfoDescription>Node ≥ 24. 저장소는 로컬 SQLite(.holiday/ledger.db)만. npx @holiday-cfo/cli</PackageInfoDescription>
   <PackageInfoDependencies>
-    <PackageInfoDependency name="@holiday-cfo/core" version="0.2.4" />
-    <PackageInfoDependency name="@holiday-cfo/store-sql" version="0.2.4" />
-    <PackageInfoDependency name="@holiday-cfo/store-sqlite" version="0.2.4" />
+    <PackageInfoDependency name="@holiday-cfo/core" version="0.4.3" />
+    <PackageInfoDependency name="@holiday-cfo/store-sql" version="0.4.3" />
+    <PackageInfoDependency name="@holiday-cfo/store-sqlite" version="0.4.3" />
     <PackageInfoDependency name="commander" />
     <PackageInfoDependency name="zod" />
   </PackageInfoDependencies>
@@ -101,6 +107,7 @@ summary: 전역 --json, stderr 에러 봉투, exit code가 계약이다.
 | [`review accept`](/docs/spec/cli/review#review-accept) | yes | draft를 posted로 승격한다. 이미 균형이므로 균형 실패는 없다. |
 | [`review reject`](/docs/spec/cli/review#review-reject) | yes | draft를 거부한다. ingest 행은 중복 기억용으로 유지한다. |
 | [`cashflow`](/docs/spec/cli/cashflow) | no | 현금 계정에서 스케줄 지출을 투영한다. 잔액이 음수면 ⚠ SHORT. |
+| [`status`](/docs/spec/cli/status) | yes | 장부 구조를 프로젝트 루트 `status.md`에 금액 없이 다시 쓴다. |
 | [`tax return add`](/docs/spec/cli/tax#tax-return-add) | yes | 관측된 세금 신고서 헤더·라인을 SoR에 append한다. 세액 공식 없음. |
 | [`tax return list`](/docs/spec/cli/tax#tax-return-list) | no | 저장된 세금 신고서 헤더를 나열한다. |
 | [`tax return show`](/docs/spec/cli/tax#tax-return-show) | no | 한 건의 신고서 헤더와 라인을 반환한다. |
