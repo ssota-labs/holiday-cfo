@@ -1,7 +1,0 @@
-packages:
-  - "apps/*"
-  - "packages/*"
-allowBuilds:
-  # next/image optimizer in apps/docs
-  esbuild: true
-  sharp: true
