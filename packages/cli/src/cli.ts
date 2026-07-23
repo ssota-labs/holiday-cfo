@@ -111,6 +111,7 @@ import { scaffoldLedgerDocs } from './ledger-docs.js';
 import { scaffoldDeploy } from './deploy.js';
 import { INGEST_SUBMISSION, type IngestItemInput } from './ingest.js';
 import { type DeriveWeight, UsageError, parseLeg } from './legs.js';
+import { writeLedgerStatus } from './status.js';
 import { createWorkspace, openLedger, readConfig, requireWorkspace } from './workspace.js';
 
 /**
@@ -3435,6 +3436,22 @@ function serializeLiabilityMaturity(m: LiabilityMaturitySummary) {
   };
 }
 
+
+program
+  .command('status')
+  .description('장부 구조를 프로젝트 루트 status.md에 다시 씁니다')
+  .action(async () => {
+    const ws = requireWorkspace();
+    const config = readConfig(ws);
+    const store = await openLedger(ws);
+    try {
+      const result = await writeLedgerStatus(ws, store, config.timezone);
+      if (jsonMode()) out(result);
+      else note(`장부 현황을 다시 썼습니다: ${result.statusPath} — 구조를 확인할 때 먼저 읽으세요.`);
+    } finally {
+      await store.close();
+    }
+  });
 
 program
   .command('verify')

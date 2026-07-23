@@ -67,8 +67,17 @@ entry you're about to post in plain language and let the user confirm.
 
 ## Getting oriented
 
+For structure questions, read `status.md` first. It lists account, card, loan, and
+installment names without balances. If it is missing or empty, run `holiday status`
+to rewrite it, then fall back to the list commands if needed. Never use it for a
+balance, reconciliation, or posted-state answer.
+
 ```bash
-holiday account list          # what accounts exist
+holiday status                # rewrite status.md from the ledger
+holiday account list          # fallback: what accounts exist
+holiday card list             # fallback: cards and billing rules
+holiday loan list             # fallback: loans
+holiday installment list      # fallback: installment plans
 holiday balance               # what is owned and owed right now
 # 유동·비유동: balance --json → liabilityMaturity (or close --dry-run --json)
 holiday verify                # is the ledger sound and the audit chain intact

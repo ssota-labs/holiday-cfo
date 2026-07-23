@@ -13,3 +13,4 @@ export { submitIngest, type SubmitIngestInput } from './ingest.js';
 export { listPendingReviews, acceptReview, rejectReview } from './review.js';
 export { verifyLedger, type VerifyOptions } from './verify.js';
 export { liabilityMaturityAt } from './liability-maturity.js';
+export { ledgerStatus } from './ledger-status.js';
