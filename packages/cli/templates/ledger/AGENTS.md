@@ -53,16 +53,18 @@ npx @holiday-cfo/cli@latest <command>
 - **모든 전표는 정확히 0으로 균형.** 허용오차 없음. `unbalanced`가 알려주는
   잔차(residual)는 정보다 — 다른 숫자를 조정해 맞추지 말고, 빠진 leg(수수료,
   할인)를 찾거나 묻는다.
-- **계정은 `holiday account list`로 확인하고 있는 것을 쓴다.** 없으면 만들자고
-  제안하되 이름을 먼저 말한다.
+- **계정은 지어내지 않는다.** 프로젝트 루트 `status.md`를 먼저 보고, 없으면
+  `holiday status`로 만든 뒤 그 목록을 쓴다. 그래도 비면 `holiday account list`
+  등으로 폴백한다. 없는 계정은 만들자고 제안하되 이름을 먼저 말한다.
 - **비자명한 전표는 쓰기 전에 말로 보인다.**
 
 ## 장부 구조 파악
 
-계좌·카드·대출·할부 구성을 물으면 프로젝트 루트의 `status.md`를 먼저 읽는다.
-이 파일에는 이름과 계정 코드만 있고 잔액은 없다. 파일이 없거나 비어 있으면
-`holiday status`로 다시 쓴다. 그래도 확인이 필요하면 `holiday account list` /
-`card list` / `loan list` / `installment list`로 조회한다.
+세션에서 장부를 다룰 때는 **항상** 프로젝트 루트의 `status.md`를 확인한다.
+없으면 `holiday status`로 만든다. 비어 있거나 오래돼 보이면 같은 명령으로
+다시 쓴다. 이 파일에는 계좌·카드·대출·할부 이름과 계정 코드만 있고 잔액은
+없다. 파일이 없거나 절이 비면 `holiday account list` / `card list` /
+`loan list` / `installment list`로 폴백한다.
 
 잔액·확정·잔액 대조 판단에는 `status.md`를 쓰지 않는다. 이 파일을 손으로 고쳐도
 원장은 바뀌지 않으며, `holiday status`를 다시 실행하면 원장 기준으로 통째로 덮인다.

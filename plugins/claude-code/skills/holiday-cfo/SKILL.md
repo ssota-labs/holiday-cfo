@@ -52,18 +52,22 @@ and not `₩1,240,00`.
 do not "fix" it by nudging a number. Find the missing leg — a fee, a discount, a
 rounding line — or ask.
 
-**Never guess an account.** Run `holiday account list` and use what exists. If the
-right account is missing, propose creating it and say what you'd call it.
+**Never guess an account.** Always check project-root `status.md` first; if it is
+missing, run `holiday status` to create it, then use that list. Fall back to
+`holiday account list` (and card/loan/installment list) only when the file is
+still empty. If the right account is missing, propose creating it and say what
+you'd call it.
 
 **Show your work before you write.** For anything non-obvious, state the double
 entry you're about to post in plain language and let the user confirm.
 
 ## Getting oriented
 
-For structure questions, read `status.md` first. It lists account, card, loan, and
-installment names without balances. If it is missing or empty, run `holiday status`
-to rewrite it, then fall back to the list commands if needed. Never use it for a
-balance, reconciliation, or posted-state answer.
+Always check `status.md` when you start working in a ledger folder. It lists
+account, card, loan, and installment names without balances. If it is missing,
+run `holiday status` to create it. If it is empty or looks stale, rewrite with
+the same command, then fall back to the list commands if needed. Never use it
+for a balance, reconciliation, or posted-state answer.
 
 ```bash
 holiday status                # rewrite status.md from the ledger
